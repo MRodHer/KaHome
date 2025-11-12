@@ -1,0 +1,117 @@
+# Base de Conocimiento para el Sistema de Gestión de Pensiones de Mascotas
+
+Esta base de conocimiento sintetiza los hallazgos clave del "Análisis de Mercado y Viabilidad Estratégica" y establece los principios rectores para el desarrollo del software.
+
+## 1. Contexto Estratégico y Propuesta de Valor
+
+| Aspecto | Descripción | Implicación para el Software |
+| **Trazabilidad** | Se requiere un código único por mascota para rastrear su historial de servicios y compras. | El campo `Codigo_Unico` en la entidad `Mascota` debe ser la clave para la consulta del historial de `Reserva` y `Transacción_Financiera`. |
+| :--- | :--- | :--- |
+| **Objetivo Central** | Optimización operativa y financiera, con un enfoque específico en la **administración de ingresos y egresos** para maximizar la rentabilidad. | El Módulo Financiero debe ser robusto y el registro de transacciones debe ser automático y detallado. |
+| **Doble Frente de Competencia** | **SaaS B2B** (Gingr, PetExec) y **Marketplaces B2C** (Rover, DogHero). | El software debe ofrecer una **defensa indispensable** contra la desintermediación, enfocándose en la **retención de clientes** y la **maximización del valor** a través de un CRM robusto y herramientas de *upselling*. |
+| **Estrategia de Producto** | Posicionarse como una herramienta para que las pensiones tradicionales puedan **sobrevivir y prosperar** contra la comoditización. | Debe incluir funcionalidades de valor agregado como el portal del cliente, gestión de lealtad y programas *premium*. |
+
+## 2. Requerimientos de Arquitectura y Escalabilidad
+
+| Aspecto | Descripción | Implicación para el Software |
+| **Trazabilidad** | Se requiere un código único por mascota para rastrear su historial de servicios y compras. | El campo `Codigo_Unico` en la entidad `Mascota` debe ser la clave para la consulta del historial de `Reserva` y `Transacción_Financiera`. |
+| :--- | :--- | :--- |
+| **Arquitectura** | Debe construirse sobre una arquitectura **nativa de la nube (SaaS)**. | El desarrollo debe ser *cloud-native* (ej. contenedores, microservicios) para garantizar escalabilidad, acceso móvil y actualizaciones rápidas. |
+| **Modelo de Datos** | Debe diseñarse para soportar **múltiples ubicaciones (multi-location)** desde el inicio. | La base de datos debe incluir una tabla de `Ubicaciones` y todas las entidades principales (`Clientes`, `Reservas`, `Finanzas`) deben estar asociadas a una ubicación. |
+| **Visión a Largo Plazo** | Integración con **IA para monitoreo de comportamiento y salud** (detección de estrés, letargo) y cámaras web. | La arquitectura debe ser modular y exponer APIs para futuras integraciones con servicios de terceros o módulos de IA. |
+
+## 3. Cumplimiento Legal y Normativo (México)
+
+El sistema debe garantizar el cumplimiento de las siguientes normativas, que representan una **Oportunidad de Cumplimiento Legal** frente a la competencia global.
+
+| Normativa | Descripción | Requerimiento Funcional Asociado |
+| :--- | :--- | :--- |
+| **LFPDPPP** | **Ley Federal de Protección de Datos Personales en Posesión de los Particulares**. Regula el manejo de datos personales. | **RF-OPE-003**: Implementar políticas de privacidad, avisos de privacidad claros, y mecanismos de consentimiento y revocación (derechos ARCO). |
+| **NOM-151** | Norma Oficial Mexicana que establece los requisitos para la **conservación de mensajes de datos y digitalización de documentos**. | **RF-OPE-002**: La generación de contratos digitales y la firma electrónica deben cumplir con esta norma para garantizar su validez legal. |
+
+## 4. Funcionalidades Clave de la Competencia a Superar
+
+El sistema debe igualar o superar las siguientes características de los líderes del mercado (Gingr, PetExec):
+
+*   **Portal del Cliente 24/7:** Para reservas en línea, actualización de datos y consulta de historial.
+*   **Cuatro Tipos de Calendarios:** Instalación, alojamiento, disponibilidad y sincronización.
+*   **Reportes Financieros Detallados:** Más allá de solo ingresos/egresos, debe ofrecer análisis de rentabilidad.
+*   **Gestión de Múltiples Ubicaciones:** Esencial para atraer a clientes más grandes (mini-cadenas).
+
+## 5. Estructura de Datos Mínima (Modelo Entidad-Relación)
+
+El sistema debe modelar las siguientes entidades principales:
+
+1.  **Cliente:** ID, Nombre, Email, Teléfono, Dirección, Fecha de Registro, ID_Ubicacion.
+2.  **2. Mascota: ID, ID_Cliente, **Codigo_Unico** (UUID/Alfanumérico), Nombre, Especie, Raza, Género, Edad, Fecha_Ultima_Vacuna, Historial_Medico (JSON/Texto), **URL_Foto** (String).3.  **Servicio:** ID, Nombre (Pensión, Baño, Paseo, Medicación), Precio, Duración_Estimada.
+4.  **Reserva:** ID, ID_Cliente, ID_Mascota, ID_Servicio, Fecha_Inicio, Fecha_Fin, Estado (Confirmada, Cancelada, Completada), Costo_Total.
+5.  **Transacción_Financiera:** ID, Tipo (Ingreso/Egreso), Monto, Fecha, Descripción, ID_Reserva (opcional), ID_Ubicacion.
+6.  **Ubicacion:** ID, Nombre, Dirección, Capacidad_Total.
+7.  **Personal:** ID, Nombre, Rol, ID_Ubicacion.
+8.  **Contrato:** ID, ID_Reserva, URL_Documento, Estado_Firma (Firmado/Pendiente), Fecha_Firma.
+
+# Requerimientos Funcionales por Módulo para el Sistema de Gestión de Pensiones de Mascotas
+
+Basado en el análisis del documento "Análisis de Mercado y Viabilidad Estratégica: Desarrollo de un SaaS para la Gestión de Pensiones de Mascotas en México y Latinoamérica" y los dashboards solicitados por el usuario, se definen los siguientes módulos y sus requerimientos funcionales.
+
+## 1. Módulo de Gestión de Clientes y Mascotas (CRM)
+
+Este módulo es el núcleo del sistema, enfocado en la **fidelización** y la **gestión de relaciones con clientes (CRM)**, como se menciona en el análisis de la competencia.
+
+| ID | Requerimiento Funcional | Descripción | Dashboard Asociado |
+| :--- | :--- | :--- | :--- |
+| RF-CRM-001 | **Registro Completo de Cliente** | Permitir el registro de nuevos clientes con campos obligatorios: Nombre completo, Email, Teléfono, Dirección. | Dashboard para Clientes Nuevos |
+| RF-CRM-002 | **Registro Completo de Mascota** | Permitir el registro de mascotas asociadas a un cliente, incluyendo: Nombre, Especie (Perro, Gato, etc.), Raza, Género, Edad, y Fecha de Última Vacuna. **Debe generar un Código de Identificación Único (ej. UUID o código alfanumérico).** | Dashboard para Clientes Nuevos |
+| RF-CRM-007 | **Carga de Foto de Mascota** | Permitir la carga y visualización de una foto de perfil para cada mascota en su registro y en el dashboard. | Dashboard para Clientes Nuevos |
+| RF-CRM-008 | **Historial de Compras por Mascota** | Permitir la consulta del historial completo de servicios y productos contratados por la mascota, utilizando su Código de Identificación Único. | CRM |
+| RF-CRM-003 | **Gestión de Historial Médico** | Almacenar y visualizar el historial médico de la mascota, incluyendo alergias, condiciones preexistentes y medicamentos actuales. | Filtros en Base de Datos |
+| RF-CRM-004 | **Alertas de Vacunación** | Generar alertas automáticas al personal cuando la fecha de la última vacuna de una mascota esté próxima a expirar o ya haya expirado. | Filtros en Base de Datos |
+| RF-CRM-005 | **Segmentación para Ofertas** | Permitir la segmentación de la base de datos de clientes y mascotas por criterios como edad y estado de vacunación para campañas de ofertas preventivas (ej. descuentos en vacunas). | Filtros en Base de Datos, CRM |
+| RF-CRM-006 | **Portal del Cliente (Self-Service)** | Proveer un portal web donde el cliente pueda actualizar sus datos, registrar nuevas mascotas y consultar el estado de sus reservas. (Basado en la funcionalidad clave de la competencia). | N/A |
+
+## 2. Módulo de Gestión de Servicios y Reservas
+
+Este módulo gestiona la contratación de servicios y la programación de las actividades diarias.
+
+| ID | Requerimiento Funcional | Descripción | Dashboard Asociado |
+| :--- | :--- | :--- | :--- |
+| RF-SRV-001 | **Contratación de Servicios** | Permitir la selección y contratación de servicios específicos: Baños, Paseos, Medicaciones, y Pensión (alojamiento). | Dashboard para Solicitudes de Servicios |
+| RF-SRV-002 | **Gestión de Disponibilidad** | Mostrar la disponibilidad de espacios (jaulas, habitaciones) y personal para los servicios de pensión y paseos. | Calendario |
+| RF-SRV-003 | **Creación de Reserva** | Generar una reserva que asocie un cliente, una mascota, un tipo de servicio, fechas de inicio/fin y costo. | Calendario |
+| RF-SRV-004 | **Visualización de Calendario** | Presentar una vista de calendario (mensual y día-a-día) que muestre las reservas activas (inquilinos) y los servicios programados para cada día. | Calendario |
+| RF-SRV-005 | **Notificaciones de Servicio** | Enviar notificaciones automáticas al personal sobre servicios pendientes (ej. "Medicación a las 14:00 para 'Max'"). | N/A |
+
+## 3. Módulo de Gestión Financiera
+
+Este módulo se centra en la optimización operativa y financiera, con un enfoque en la administración de ingresos y egresos.
+
+| ID | Requerimiento Funcional | Descripción | Dashboard Asociado |
+| :--- | :--- | :--- | :--- |
+| RF-FIN-001 | **Registro de Ingresos** | Registrar automáticamente los ingresos generados por la contratación de servicios (reservas). | Gestión Financiera |
+| RF-FIN-002 | **Registro de Egresos** | Permitir el registro manual o semi-automático de egresos (ej. nómina, insumos, mantenimiento). | Gestión Financiera |
+| RF-FIN-003 | **Visualización de Flujo de Caja** | Presentar un dashboard con la visualización clara de ingresos y egresos, con filtros por periodos (semanal y mensual). | Gestión Financiera |
+| RF-FIN-004 | **Reporte de Rentabilidad** | Generar reportes que permitan analizar la rentabilidad por servicio o por cliente. (Enfoque en la rentabilidad, según el documento). | Gestión Financiera |
+
+## 4. Módulo de Gestión Operativa y de Cumplimiento
+
+Este módulo aborda las necesidades operativas diarias y el cumplimiento legal.
+
+| ID | Requerimiento Funcional | Descripción | Dashboard Asociado |
+| :--- | :--- | :--- | :--- |
+| RF-OPE-001 | **Gestión de Personal** | Permitir el registro y la asignación de tareas al personal (ej. paseos, alimentación, limpieza). | N/A |
+| RF-OPE-002 | **Generación de Contratos Digitales** | Generar contratos de servicio digitalmente y permitir la firma electrónica, cumpliendo con la **NOM-151** (mencionado en el documento). | N/A |
+| RF-OPE-003 | **Cumplimiento LFPDPPP** | Implementar mecanismos para el manejo y protección de datos personales de los clientes, en cumplimiento con la **Ley Federal de Protección de Datos Personales en Posesión de los Particulares (LFPDPPP)**. | N/A |
+| RF-OPE-004 | **Monitoreo de Salud (Visión a Futuro)** | (Requerimiento a largo plazo) Integración con sistemas de monitoreo (ej. cámaras) para detectar signos de estrés o enfermedad en tiempo real. | N/A |
+
+## 5. Módulo de Dashboards y Reportes
+
+Este módulo consolida la información para la toma de decisiones.
+
+| ID | Requerimiento Funcional | Descripción | Módulo Fuente |
+| :--- | :--- | :--- | :--- |
+| RF-DSH-001 | **Dashboard de Clientes Nuevos** | Visualización de métricas clave sobre la adquisición de nuevos clientes y mascotas en un periodo determinado. | CRM |
+| RF-DSH-002 | **Dashboard de Solicitudes de Servicios** | Visualización del volumen y tipo de servicios contratados (baños, paseos, medicaciones) en un periodo. | Servicios y Reservas |
+| RF-DSH-003 | **Dashboard de Calendario** | Vista unificada de las reservas activas, con posibilidad de filtrar por día, semana o mes. | Servicios y Reservas |
+| RF-DSH-004 | **Dashboard Financiero** | Gráficos de barras y líneas para Ingresos vs. Egresos (semanal/mensual). | Gestión Financiera |
+| RF-DSH-005 | **Dashboard CRM/Fidelización** | Métricas de retención de clientes, valor de vida del cliente (CLV) y efectividad de las ofertas preventivas. | CRM |
+

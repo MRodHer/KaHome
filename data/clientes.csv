@@ -1,0 +1,6 @@
+ID_Cliente,Nombre,Email,Telefono,Direccion,Fecha_Registro,ID_Ubicacion
+1,Ana García,ana.garcia@email.com,+525512345678,"Calle Falsa 123, Ciudad de México",2024-01-15,1
+2,Roberto Pérez,roberto.perez@email.com,+525587654321,"Avenida Siempre Viva 742, Guadalajara",2024-02-20,2
+3,Sofía Martínez,sofia.martinez@email.com,+525511223344,"Paseo de la Reforma 100, Ciudad de México",2024-03-01,1
+4,Luis Hernández,luis.hernandez@email.com,+525599887766,"Calle del Sol 5, Monterrey",2024-04-10,3
+5,Elena Ramírez,elena.ramirez@email.com,+525544556677,"Boulevard de los Sueños 20, Ciudad de México",2024-05-05,1

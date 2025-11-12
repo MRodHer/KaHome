@@ -1,0 +1,7 @@
+ID_Mascota,ID_Cliente,Codigo_Unico,Nombre,Especie,Raza,Genero,Edad,Fecha_Ultima_Vacuna,Historial_Medico,URL_Foto
+101,1,PET-001-MX,Max,Perro,Labrador,Macho,5,2024-03-10,"Alergia a la carne de res. Medicación diaria: 5mg de Claritin.","https://ejemplo.com/fotos/max.jpg"
+102,2,PET-002-GDL,Luna,Gato,Siamés,Hembra,2,2024-05-20,"Sin problemas de salud conocidos.","https://ejemplo.com/fotos/luna.jpg"
+103,3,PET-003-MX,Rocky,Perro,Bulldog Francés,Macho,1,2024-06-01,"Vacuna de la rabia pendiente. Propenso a golpes de calor.","https://ejemplo.com/fotos/rocky.jpg"
+104,4,PET-004-MTY,Kira,Perro,Pastor Alemán,Hembra,8,2023-11-15,"Artritis leve en cadera. Requiere paseo suave.","https://ejemplo.com/fotos/kira.jpg"
+105,5,PET-005-MX,Coco,Gato,Persa,Hembra,3,2024-04-25,"Requiere cepillado diario.","https://ejemplo.com/fotos/coco.jpg"
+106,1,PET-006-MX,Bella,Perro,Golden Retriever,Hembra,6,2024-01-05,"Sin problemas de salud conocidos.","https://ejemplo.com/fotos/bella.jpg"

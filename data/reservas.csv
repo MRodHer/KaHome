@@ -1,0 +1,6 @@
+ID_Reserva,ID_Cliente,ID_Mascota,ID_Servicio,Fecha_Inicio,Fecha_Fin,Estado,Costo_Total,ID_Ubicacion
+1001,1,101,1,2025-12-20,2025-12-27,Confirmada,3500.00,1
+1002,2,102,2,2025-12-22,2025-12-22,Completada,350.00,2
+1003,3,103,1,2025-12-25,2026-01-05,Confirmada,5500.00,1
+1004,4,104,3,2025-12-26,2025-12-26,Confirmada,150.00,3
+1005,5,105,1,2026-01-01,2026-01-03,Cancelada,1500.00,1

@@ -1,0 +1,7 @@
+ID_Transaccion,Tipo,Monto,Fecha,Descripcion,ID_Reserva,ID_Ubicacion
+5001,Ingreso,3500.00,2025-12-15,"Pago Reserva 1001",1001,1
+5002,Ingreso,350.00,2025-12-22,"Pago Reserva 1002",1002,2
+5003,Egreso,15000.00,2025-12-20,"Pago Nómina Diciembre",,1
+5004,Ingreso,5500.00,2025-12-25,"Pago Reserva 1003",1003,1
+5005,Egreso,5000.00,2025-12-25,"Renta Local 2",,2
+5006,Ingreso,150.00,2025-12-26,"Pago Reserva 1004",1004,3
