@@ -93,7 +93,7 @@ function App() {
           </div>
 
           <div className="p-6">
-            {currentView === 'dashboard' && <Dashboard />}
+            {currentView === 'dashboard' && <Dashboard setCurrentView={setCurrentView} />}
             {currentView === 'clientes' && <ClientesMascotas />}
             {currentView === 'reservas' && <Reservas />}
             {currentView === 'finanzas' && <Finanzas />}
