@@ -14,7 +14,12 @@ export type Cliente = {
   nombre: string;
   email: string;
   telefono: string | null;
-  direccion: string | null;
+  // direccion: string | null; // Eliminado en v1.2
+  calle_numero: string | null; // Añadido en v1.2
+  colonia: string | null;      // Añadido en v1.2
+  codigo_postal: string | null; // Añadido en v1.2
+  municipio: string | null;    // Añadido en v1.2
+  estado: string | null;       // Añadido en v1.2
   fecha_registro: string;
   id_ubicacion: string | null;
   consentimiento_datos: boolean;
@@ -65,6 +70,9 @@ export type Reserva = {
   alimento_cantidad?: string | null;
   alimento_frecuencia?: string | null;
   alimento_horarios?: string | null;
+  metodo_pago_anticipo?: string | null; // Añadido en v1.2
+  monto_anticipo?: number;            // Añadido en v1.2
+  monto_restante?: number;            // Añadido en v1.2
   created_at: string;
 };
 
