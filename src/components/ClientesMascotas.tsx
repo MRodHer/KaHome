@@ -208,9 +208,13 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
     nombre: '',
     email: '',
     telefono: '',
-    direccion: '',
-    consentimiento_datos: false,
     id_ubicacion: '',
+    consentimiento_datos: false,
+    calle_numero: '', // <-- Nuevo
+    colonia: '',      // <-- Nuevo
+    codigo_postal: '', // <-- Nuevo
+    municipio: '',    // <-- Nuevo
+    estado: '',       // <-- Nuevo
   });
   const [submitting, setSubmitting] = useState(false);
 
@@ -221,18 +225,68 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
     }
   }, [ubicaciones, formData.id_ubicacion]);
 
+  // --- INICIO DE MODIFICACIÓN: Función para Código Postal ---
+  const handlePostalCodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const cp = e.target.value;
+    setFormData({ ...formData, codigo_postal: cp });
+
+    if (cp.length === 5) {
+      // --- Simulación de API ---
+      // Aquí es donde harías la llamada a una API de Códigos Postales
+      // Ejemplo: const data = await fetch(`https://api.tucp.com/${cp}`);
+      // Por ahora, simulamos el relleno:
+
+      /*
+      // EJEMPLO DE CÓMO SE VERÍA CON UNA API REAL:
+      try {
+        setSubmitting(true); // Muestra un spinner
+        const response = await fetch(`https://tu-api-de-cp.com/api/cp/${cp}`);
+        const data = await response.json();
+
+        // Asumiendo que la API devuelve { colonia: '...', municipio: '...', estado: '...' }
+        setFormData(prev => ({
+          ...prev,
+          colonia: data.colonia || '',
+          municipio: data.municipio || '',
+          estado: data.estado || '',
+        }));
+      } catch (error) {
+        console.error('Error al buscar CP:', error);
+        // Limpiar campos si falla
+        setFormData(prev => ({ ...prev, colonia: '', municipio: '', estado: '' }));
+      } finally {
+        setSubmitting(false);
+      }
+      */
+
+      // Dejamos los campos para que el usuario los llene manualmente por ahora
+      console.log('Buscando CP (simulado):', cp);
+    }
+  };
+  // --- FIN DE MODIFICACIÓN ---
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
 
     try {
+      // --- INICIO DE MODIFICACIÓN: Datos de Submit ---
       const { error } = await supabase.from('clientes').insert([
         {
-          ...formData,
+          nombre: formData.nombre,
+          email: formData.email,
+          telefono: formData.telefono,
+          id_ubicacion: formData.id_ubicacion || (ubicaciones.length === 1 ? ubicaciones[0].id : null), // Asegura la ubicación única
+          consentimiento_datos: formData.consentimiento_datos,
           fecha_registro: new Date().toISOString().split('T')[0],
-          id_ubicacion: formData.id_ubicacion,
+          calle_numero: formData.calle_numero,
+          colonia: formData.colonia,
+          codigo_postal: formData.codigo_postal,
+          municipio: formData.municipio,
+          estado: formData.estado,
         },
       ]);
+      // --- FIN DE MODIFICACIÓN ---
 
       if (error) throw error;
 
@@ -248,7 +302,7 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Nuevo Cliente</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* --- INICIO DE MODIFICACIÓN: Lógica de Ubicaciones --- */}
@@ -272,14 +326,15 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
           {ubicaciones.length === 0 && (
             <div className="p-3 bg-red-50 border-l-4 border-red-500">
               <p className="text-sm text-red-700">
-                <strong>Error:</strong> No hay ubicaciones configuradas. Por favor, contacta al administrador.
+                <strong>Error:</strong> No hay ubicaciones configuradas. Ejecuta el script SQL de ubicaciones.
               </p>
             </div>
           )}
           {/* Si hay 1 ubicación, el campo se oculta y se auto-selecciona */}
           {/* --- FIN DE MODIFICACIÓN --- */}
+
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo*</label>
+            <label className="block text sm font-medium text-gray-700 mb-1">Nombre Completo*</label>
             <input
               type="text"
               required
@@ -307,15 +362,65 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Dirección</label>
-            <textarea
-              value={formData.direccion}
-              onChange={(e) => setFormData({ ...formData, direccion: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              rows={2}
-            />
+
+          {/* --- INICIO DE MODIFICACIÓN: Campos de Dirección --- */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">Dirección</p>
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Calle y Número</label>
+                <input
+                  type="text"
+                  value={formData.calle_numero}
+                  onChange={(e) => setFormData({ ...formData, calle_numero: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Código Postal</label>
+                  <input
+                    type="text"
+                    value={formData.codigo_postal}
+                    onChange={handlePostalCodeChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                    maxLength={5}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Colonia</label>
+                  <input
+                    type="text"
+                    value={formData.colonia}
+                    onChange={(e) => setFormData({ ...formData, colonia: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Municipio</label>
+                  <input
+                    type="text"
+                    value={formData.municipio}
+                    onChange={(e) => setFormData({ ...formData, municipio: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+                  <input
+                    type="text"
+                    value={formData.estado}
+                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
+          {/* --- FIN DE MODIFICACIÓN --- */}
+
           <div className="flex items-start">
             <input
               type="checkbox"
@@ -338,7 +443,7 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
             </button>
             <button
               type="submit"
-              disabled={submitting}
+              disabled={submitting || ubicaciones.length === 0}
               className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
             >
               {submitting ? 'Guardando...' : 'Guardar'}
@@ -349,6 +454,7 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
     </div>
   );
 }
+// NewClienteModal eliminado. Se reemplazará por una nueva implementación provista por el usuario.
 
 function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]; onClose: () => void; onSuccess: () => void }) {
   const [formData, setFormData] = useState({
