@@ -10,6 +10,9 @@ node_modules
 dist
 dist-ssr
 *.local
+__import_tmp
+KaHome-main.zip
+*Extracted to*
 
 .vscode/*
 !.vscode/extensions.json

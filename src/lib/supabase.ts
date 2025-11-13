@@ -30,6 +30,7 @@ export type Mascota = {
   raza: string | null;
   genero: string | null;
   edad: number | null;
+  peso: number | null;
   fecha_ultima_vacuna: string | null;
   historial_medico: string;
   url_foto: string | null;
@@ -57,6 +58,13 @@ export type Reserva = {
   estado: 'Confirmada' | 'Cancelada' | 'Completada';
   costo_total: number;
   notas: string | null;
+  pertenencias?: Record<string, boolean>;
+  solicita_factura?: boolean;
+  costo_iva?: number;
+  id_alimento?: string | null;
+  alimento_cantidad?: string | null;
+  alimento_frecuencia?: string | null;
+  alimento_horarios?: string | null;
   created_at: string;
 };
 
@@ -77,5 +85,36 @@ export type Ubicacion = {
   nombre: string;
   direccion: string;
   capacidad_total: number;
+  created_at: string;
+};
+
+export type TarifaPeso = {
+  id: string;
+  peso_min: number;
+  peso_max: number;
+  tarifa_noche: number;
+  tarifa_guarderia: number;
+  created_at: string;
+};
+
+export type ServicioExtra = {
+  id: string;
+  nombre: string;
+  precio: number;
+  activo: boolean;
+  created_at: string;
+};
+
+export type ReservaServicioExtra = {
+  id: string;
+  id_reserva: string;
+  id_servicio_extra: string;
+  cantidad: number;
+  precio_cobrado: number;
+};
+
+export type Alimento = {
+  id: string;
+  nombre: string;
   created_at: string;
 };

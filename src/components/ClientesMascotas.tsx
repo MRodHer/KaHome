@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
-import { supabase, type Cliente, type Mascota } from '../lib/supabase';
+import { supabase, type Cliente, type Mascota, type Ubicacion } from '../lib/supabase';
 import { Plus, Search, Edit2, Eye } from 'lucide-react';
 
 export function ClientesMascotas() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [mascotas, setMascotas] = useState<Mascota[]>([]);
+  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [showNewClienteForm, setShowNewClienteForm] = useState(false);
@@ -16,13 +17,15 @@ export function ClientesMascotas() {
 
   async function loadData() {
     try {
-      const [clientesRes, mascotasRes] = await Promise.all([
+      const [clientesRes, mascotasRes, ubicacionesRes] = await Promise.all([
         supabase.from('clientes').select('*').order('created_at', { ascending: false }),
         supabase.from('mascotas').select('*').order('created_at', { ascending: false }),
+        supabase.from('ubicaciones').select('*').order('created_at', { ascending: false }),
       ]);
 
       if (clientesRes.data) setClientes(clientesRes.data);
       if (mascotasRes.data) setMascotas(mascotasRes.data);
+      if (ubicacionesRes.data) setUbicaciones(ubicacionesRes.data);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -191,7 +194,7 @@ export function ClientesMascotas() {
       </div>
 
       {showNewClienteForm && (
-        <NewClienteModal onClose={() => setShowNewClienteForm(false)} onSuccess={loadData} />
+        <NewClienteModal ubicaciones={ubicaciones} onClose={() => setShowNewClienteForm(false)} onSuccess={loadData} />
       )}
       {showNewMascotaForm && (
         <NewMascotaModal clientes={clientes} onClose={() => setShowNewMascotaForm(false)} onSuccess={loadData} />
@@ -200,15 +203,23 @@ export function ClientesMascotas() {
   );
 }
 
-function NewClienteModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubicacion[]; onClose: () => void; onSuccess: () => void }) {
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
     telefono: '',
     direccion: '',
     consentimiento_datos: false,
+    id_ubicacion: '',
   });
   const [submitting, setSubmitting] = useState(false);
+
+  // Si solo hay una ubicación disponible, seleccionarla por defecto para facilitar el flujo
+  useEffect(() => {
+    if (ubicaciones.length === 1 && !formData.id_ubicacion) {
+      setFormData((prev) => ({ ...prev, id_ubicacion: ubicaciones[0].id }));
+    }
+  }, [ubicaciones]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -219,7 +230,7 @@ function NewClienteModal({ onClose, onSuccess }: { onClose: () => void; onSucces
         {
           ...formData,
           fecha_registro: new Date().toISOString().split('T')[0],
-          id_ubicacion: '11111111-1111-1111-1111-111111111111',
+          id_ubicacion: formData.id_ubicacion,
         },
       ]);
 
@@ -240,6 +251,20 @@ function NewClienteModal({ onClose, onSuccess }: { onClose: () => void; onSucces
       <div className="bg-white rounded-lg p-6 w-full max-w-md">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Nuevo Cliente</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación*</label>
+            <select
+              required
+              value={formData.id_ubicacion}
+              onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccionar ubicación</option>
+              {ubicaciones.map((u) => (
+                <option key={u.id} value={u.id}>{u.nombre}</option>
+              ))}
+            </select>
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo*</label>
             <input
