@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { supabase } from '../lib/supabase';
 import { BarChart3, Users, Calendar, DollarSign, AlertCircle } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -145,7 +145,7 @@ export function Dashboard({ setCurrentView }: { setCurrentView: (view: View) => 
   );
 }
 
-function StatCard({ icon, title, value, color }: { icon: React.ReactNode; title: string; value: string | number; color: string }) {
+function StatCard({ icon, title, value, color }: { icon: ReactNode; title: string; value: string | number; color: string }) {
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 flex items-center">
       <div className={`${color} text-white p-3 rounded-lg mr-4 flex items-center justify-center`}>
