@@ -214,12 +214,12 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
   });
   const [submitting, setSubmitting] = useState(false);
 
-  // Si solo hay una ubicación disponible, seleccionarla por defecto para facilitar el flujo
+  // Si solo hay una ubicación disponible, seleccionarla por defecto
   useEffect(() => {
     if (ubicaciones.length === 1 && !formData.id_ubicacion) {
       setFormData((prev) => ({ ...prev, id_ubicacion: ubicaciones[0].id }));
     }
-  }, [ubicaciones]);
+  }, [ubicaciones, formData.id_ubicacion]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -251,20 +251,33 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
       <div className="bg-white rounded-lg p-6 w-full max-w-md">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Nuevo Cliente</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación*</label>
-            <select
-              required
-              value={formData.id_ubicacion}
-              onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Seleccionar ubicación</option>
-              {ubicaciones.map((u) => (
-                <option key={u.id} value={u.id}>{u.nombre}</option>
-              ))}
-            </select>
-          </div>
+          {/* --- INICIO DE MODIFICACIÓN: Lógica de Ubicaciones --- */}
+          {ubicaciones.length > 1 && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación*</label>
+              <select
+                required
+                value={formData.id_ubicacion}
+                onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Seleccionar ubicación</option>
+                {ubicaciones.map((u) => (
+                  <option key={u.id} value={u.id}>{u.nombre}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
+          {ubicaciones.length === 0 && (
+            <div className="p-3 bg-red-50 border-l-4 border-red-500">
+              <p className="text-sm text-red-700">
+                <strong>Error:</strong> No hay ubicaciones configuradas. Por favor, contacta al administrador.
+              </p>
+            </div>
+          )}
+          {/* Si hay 1 ubicación, el campo se oculta y se auto-selecciona */}
+          {/* --- FIN DE MODIFICACIÓN --- */}
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo*</label>
             <input
