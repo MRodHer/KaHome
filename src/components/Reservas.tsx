@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase, type Reserva, type Cliente, type Mascota, type Servicio } from '../lib/supabase';
+import { supabase, type Reserva, type Cliente, type Mascota, type Servicio, type TarifaPeso, type ServicioExtra, type Alimento } from '../lib/supabase';
 import { Calendar as CalendarIcon, Plus, Filter } from 'lucide-react';
 
 export function Reservas() {
@@ -7,6 +7,9 @@ export function Reservas() {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [mascotas, setMascotas] = useState<Mascota[]>([]);
   const [servicios, setServicios] = useState<Servicio[]>([]);
+  const [tarifasPeso, setTarifasPeso] = useState<TarifaPeso[]>([]);
+  const [serviciosExtra, setServiciosExtra] = useState<ServicioExtra[]>([]);
+  const [alimentos, setAlimentos] = useState<Alimento[]>([]);
   const [loading, setLoading] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState<string>('Todas');
   const [showNewReservaForm, setShowNewReservaForm] = useState(false);
@@ -17,17 +20,23 @@ export function Reservas() {
 
   async function loadData() {
     try {
-      const [reservasRes, clientesRes, mascotasRes, serviciosRes] = await Promise.all([
+      const [reservasRes, clientesRes, mascotasRes, serviciosRes, tarifasRes, extrasRes, alimentosRes] = await Promise.all([
         supabase.from('reservas').select('*').order('fecha_inicio', { ascending: false }),
         supabase.from('clientes').select('*'),
         supabase.from('mascotas').select('*'),
         supabase.from('servicios').select('*'),
+        supabase.from('tarifas_peso').select('*').order('peso_min', { ascending: true }),
+        supabase.from('servicios_extra').select('*').order('created_at', { ascending: false }),
+        supabase.from('alimentos').select('*').order('nombre', { ascending: true }),
       ]);
 
       if (reservasRes.data) setReservas(reservasRes.data);
       if (clientesRes.data) setClientes(clientesRes.data);
       if (mascotasRes.data) setMascotas(mascotasRes.data);
       if (serviciosRes.data) setServicios(serviciosRes.data);
+      if (tarifasRes.data) setTarifasPeso(tarifasRes.data);
+      if (extrasRes.data) setServiciosExtra(extrasRes.data);
+      if (alimentosRes.data) setAlimentos(alimentosRes.data);
     } catch (error) {
       console.error('Error loading data:', error);
     } finally {
@@ -150,6 +159,9 @@ export function Reservas() {
           clientes={clientes}
           mascotas={mascotas}
           servicios={servicios}
+          tarifasPeso={tarifasPeso}
+          serviciosExtra={serviciosExtra}
+          alimentos={alimentos}
           onClose={() => setShowNewReservaForm(false)}
           onSuccess={loadData}
         />
@@ -162,15 +174,22 @@ function NewReservaModal({
   clientes,
   mascotas,
   servicios,
+  tarifasPeso,
+  serviciosExtra,
+  alimentos,
   onClose,
   onSuccess,
 }: {
   clientes: Cliente[];
   mascotas: Mascota[];
   servicios: Servicio[];
+  tarifasPeso: TarifaPeso[];
+  serviciosExtra: ServicioExtra[];
+  alimentos: Alimento[];
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const [clienteSearch, setClienteSearch] = useState('');
   const [formData, setFormData] = useState({
     id_cliente: '',
     id_mascota: '',
@@ -178,45 +197,212 @@ function NewReservaModal({
     fecha_inicio: '',
     fecha_fin: '',
     notas: '',
+    pertenencias: {
+      correa: false,
+      pechera: false,
+      platos: false,
+      cama: false,
+      cobija: false,
+      juguetes: false,
+      ropa: false,
+      collar: false,
+      vaso_medidor: false,
+    },
+    id_alimento: '',
+    nuevo_alimento: '',
+    alimento_cantidad: '',
+    alimento_frecuencia: '',
+    alimento_horarios: '',
+    servicios_extra_seleccionados: {} as Record<string, boolean>,
+    solicita_factura: false,
   });
   const [submitting, setSubmitting] = useState(false);
+  const [costos, setCostos] = useState({ subtotal: 0, iva: 0, total: 0 });
+
+  const clientesFiltrados = clienteSearch.trim()
+    ? clientes.filter(c => c.nombre.toLowerCase().includes(clienteSearch.trim().toLowerCase()))
+    : clientes;
 
   const mascotasDelCliente = formData.id_cliente
     ? mascotas.filter(m => m.id_cliente === formData.id_cliente)
     : [];
 
   const servicioSeleccionado = servicios.find(s => s.id === formData.id_servicio);
+  const clienteSeleccionado = clientes.find(c => c.id === formData.id_cliente);
+  const mascotaSeleccionada = mascotas.find(m => m.id === formData.id_mascota);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!servicioSeleccionado) return;
-
-    setSubmitting(true);
-
+  // Recalcular costos cuando cambien inputs relevantes
+  useEffect(() => {
     try {
+      if (!servicioSeleccionado || !formData.fecha_inicio || !formData.fecha_fin) {
+        setCostos({ subtotal: 0, iva: 0, total: 0 });
+        return;
+      }
+
       const inicio = new Date(formData.fecha_inicio);
       const fin = new Date(formData.fecha_fin);
       const dias = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-      const costoTotal = servicioSeleccionado.precio_base * dias;
 
-      const { error: reservaError } = await supabase.from('reservas').insert([
-        {
-          ...formData,
-          id_ubicacion: '11111111-1111-1111-1111-111111111111',
-          costo_total: costoTotal,
-          estado: 'Confirmada',
-        },
-      ]);
+      // Tarifa por peso
+      let tarifaDiaria = servicioSeleccionado.precio_base;
+      if (mascotaSeleccionada && tarifasPeso.length > 0) {
+        const peso = mascotaSeleccionada.peso || 0;
+        const tarifaData = tarifasPeso.find(t => peso > t.peso_min && peso <= t.peso_max);
+        if (tarifaData) {
+          if (servicioSeleccionado.nombre === 'Pensión') {
+            tarifaDiaria = tarifaData.tarifa_noche;
+          } else if (servicioSeleccionado.nombre === 'Guardería') {
+            tarifaDiaria = tarifaData.tarifa_guarderia;
+          }
+        }
+      }
+      const costo_base = tarifaDiaria * dias;
 
-      if (reservaError) throw reservaError;
+      // Servicios extra
+      let costo_servicios_extra = 0;
+      for (const servicioId in formData.servicios_extra_seleccionados) {
+        if (formData.servicios_extra_seleccionados[servicioId]) {
+          const extra = serviciosExtra.find(s => s.id === servicioId);
+          if (extra) {
+            const esPorDia = /\(por día\)/i.test(extra.nombre);
+            const cantidad = esPorDia ? dias : 1;
+            costo_servicios_extra += Number(extra.precio) * cantidad;
+          }
+        }
+      }
 
+      const subtotal = costo_base + costo_servicios_extra;
+      const iva = formData.solicita_factura ? subtotal * 0.16 : 0;
+      const total = subtotal + iva;
+      setCostos({ subtotal, iva, total });
+    } catch (err) {
+      setCostos({ subtotal: 0, iva: 0, total: 0 });
+    }
+  }, [formData, servicioSeleccionado, mascotaSeleccionada, tarifasPeso, serviciosExtra]);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      // Validaciones básicas
+      if (!servicioSeleccionado || !mascotaSeleccionada || !clienteSeleccionado) {
+        throw new Error('Debe seleccionar cliente, mascota y servicio');
+      }
+
+      const inicio = new Date(formData.fecha_inicio);
+      const fin = new Date(formData.fecha_fin);
+      if (isNaN(inicio.getTime()) || isNaN(fin.getTime()) || fin < inicio) {
+        throw new Error('Fechas inválidas');
+      }
+      const dias = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+      // Tarifa por peso
+      const peso = mascotaSeleccionada.peso || 0;
+      const tarifaData = tarifasPeso.find(t => peso > t.peso_min && peso <= t.peso_max);
+      let tarifaDiaria = servicioSeleccionado.precio_base;
+      if (tarifaData) {
+        if (servicioSeleccionado.nombre === 'Pensión') {
+          tarifaDiaria = tarifaData.tarifa_noche;
+        } else if (servicioSeleccionado.nombre === 'Guardería') {
+          tarifaDiaria = tarifaData.tarifa_guarderia;
+        }
+      }
+      const costo_base = tarifaDiaria * dias;
+
+      // Servicios extra
+      let costo_servicios_extra = 0;
+      const serviciosParaGuardar: { id_servicio_extra: string; cantidad: number; precio_cobrado: number }[] = [];
+      for (const servicioId in formData.servicios_extra_seleccionados) {
+        if (formData.servicios_extra_seleccionados[servicioId]) {
+          const extra = serviciosExtra.find(s => s.id === servicioId);
+          if (extra) {
+            const esPorDia = /\(por día\)/i.test(extra.nombre);
+            const cantidad = esPorDia ? dias : 1;
+            const precio = Number(extra.precio) * cantidad;
+            costo_servicios_extra += precio;
+            serviciosParaGuardar.push({ id_servicio_extra: extra.id, cantidad, precio_cobrado: Number(extra.precio) });
+          }
+        }
+      }
+
+      // IVA
+      const subtotal = costo_base + costo_servicios_extra;
+      const costo_iva = formData.solicita_factura ? subtotal * 0.16 : 0;
+      const costo_total = subtotal + costo_iva;
+
+      // Manejo de alimentos: si el usuario selecciona "otro", crear/usar marca
+      let id_alimento_reserva: string | null = null;
+      if (formData.id_alimento === 'otro' && formData.nuevo_alimento.trim()) {
+        const nombreNuevo = formData.nuevo_alimento.trim();
+        // Intentar insertar, si ya existe, recuperar ID
+        const insertRes = await supabase.from('alimentos').insert([{ nombre: nombreNuevo }]).select();
+        if (insertRes.error) {
+          // Intentar seleccionar por nombre (por conflicto de unique)
+          const selRes = await supabase.from('alimentos').select('*').eq('nombre', nombreNuevo).limit(1);
+          if (selRes.error || !selRes.data || selRes.data.length === 0) {
+            throw insertRes.error;
+          }
+          id_alimento_reserva = selRes.data[0].id;
+        } else if (insertRes.data && insertRes.data[0]) {
+          id_alimento_reserva = insertRes.data[0].id;
+        }
+      } else if (formData.id_alimento) {
+        id_alimento_reserva = formData.id_alimento;
+      }
+
+      // Insertar reserva y obtener ID
+      const reservaInsert = await supabase
+        .from('reservas')
+        .insert([
+          {
+            id_cliente: formData.id_cliente,
+            id_mascota: formData.id_mascota,
+            id_servicio: formData.id_servicio,
+            id_ubicacion: clienteSeleccionado.id_ubicacion,
+            fecha_inicio: formData.fecha_inicio,
+            fecha_fin: formData.fecha_fin,
+            estado: 'Confirmada',
+            costo_total,
+            notas: formData.notas || '',
+            pertenencias: formData.pertenencias,
+            solicita_factura: formData.solicita_factura,
+            costo_iva,
+            id_alimento: id_alimento_reserva,
+            alimento_cantidad: formData.alimento_cantidad || null,
+            alimento_frecuencia: formData.alimento_frecuencia || null,
+            alimento_horarios: formData.alimento_horarios || null,
+          },
+        ])
+        .select();
+
+      if (reservaInsert.error || !reservaInsert.data || reservaInsert.data.length === 0) {
+        throw reservaInsert.error || new Error('No se pudo crear la reserva');
+      }
+
+      const nuevaReserva = reservaInsert.data[0];
+
+      // Insertar servicios extra asociados
+      for (const item of serviciosParaGuardar) {
+        await supabase.from('reserva_servicios_extra').insert([
+          {
+            id_reserva: nuevaReserva.id,
+            id_servicio_extra: item.id_servicio_extra,
+            cantidad: item.cantidad,
+            precio_cobrado: item.precio_cobrado,
+          },
+        ]);
+      }
+
+      // Registrar transacción financiera
       await supabase.from('transacciones_financieras').insert([
         {
           tipo: 'Ingreso',
-          monto: costoTotal,
+          monto: costo_total,
           fecha: formData.fecha_inicio,
           descripcion: `Reserva de ${servicioSeleccionado.nombre}`,
-          id_ubicacion: '11111111-1111-1111-1111-111111111111',
+          id_reserva: nuevaReserva.id,
+          id_ubicacion: clienteSeleccionado.id_ubicacion,
           categoria: 'Servicios',
         },
       ]);
@@ -238,6 +424,13 @@ function NewReservaModal({
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cliente*</label>
+            <input
+              type="text"
+              placeholder="Buscar cliente..."
+              value={clienteSearch}
+              onChange={(e) => setClienteSearch(e.target.value)}
+              className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
             <select
               required
               value={formData.id_cliente}
@@ -245,7 +438,7 @@ function NewReservaModal({
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
               <option value="">Seleccionar cliente</option>
-              {clientes.map((c) => (
+              {clientesFiltrados.map((c) => (
                 <option key={c.id} value={c.id}>{c.nombre}</option>
               ))}
             </select>
@@ -318,6 +511,133 @@ function NewReservaModal({
               rows={3}
               placeholder="Instrucciones especiales, cuidados particulares..."
             />
+          </div>
+
+          {/* Checklist de pertenencias */}
+          <fieldset className="border border-gray-200 rounded-lg p-4">
+            <legend className="px-2 text-sm font-semibold text-gray-700">Pertenencias</legend>
+            <div className="grid grid-cols-2 gap-3 mt-2">
+              {Object.keys(formData.pertenencias).map((key) => (
+                <label key={key} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={(formData.pertenencias as any)[key]}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      pertenencias: { ...formData.pertenencias, [key]: e.target.checked },
+                    })}
+                  />
+                  {key}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {/* Sección de Alimento */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <p className="text-sm font-semibold text-gray-700 mb-2">Alimento</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                <select
+                  value={formData.id_alimento}
+                  onChange={(e) => setFormData({ ...formData, id_alimento: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                >
+                  <option value="">Seleccionar</option>
+                  {alimentos.map((a) => (
+                    <option key={a.id} value={a.id}>{a.nombre}</option>
+                  ))}
+                  <option value="otro">Otro (especificar)</option>
+                </select>
+                {formData.id_alimento === 'otro' && (
+                  <input
+                    type="text"
+                    placeholder="Escribe la marca..."
+                    value={formData.nuevo_alimento}
+                    onChange={(e) => setFormData({ ...formData, nuevo_alimento: e.target.value })}
+                    className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  />
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (tazas)</label>
+                <input
+                  type="text"
+                  value={formData.alimento_cantidad}
+                  onChange={(e) => setFormData({ ...formData, alimento_cantidad: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia (veces al día)</label>
+                <input
+                  type="text"
+                  value={formData.alimento_frecuencia}
+                  onChange={(e) => setFormData({ ...formData, alimento_frecuencia: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Horarios</label>
+                <input
+                  type="text"
+                  placeholder="Ej. 8:00 AM, 1:00 PM, 7:00 PM"
+                  value={formData.alimento_horarios}
+                  onChange={(e) => setFormData({ ...formData, alimento_horarios: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Sección de Servicios Extra */}
+          <fieldset className="border border-gray-200 rounded-lg p-4">
+            <legend className="px-2 text-sm font-semibold text-gray-700">Servicios Extra</legend>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+              {serviciosExtra.map((s) => (
+                <label key={s.id} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(formData.servicios_extra_seleccionados[s.id])}
+                    onChange={(e) => setFormData({
+                      ...formData,
+                      servicios_extra_seleccionados: {
+                        ...formData.servicios_extra_seleccionados,
+                        [s.id]: e.target.checked,
+                      },
+                    })}
+                  />
+                  {s.nombre} - ${Number(s.precio).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
+          {/* Sección de Facturación */}
+          <div className="border border-gray-200 rounded-lg p-4">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={formData.solicita_factura}
+                onChange={(e) => setFormData({ ...formData, solicita_factura: e.target.checked })}
+              />
+              <span className="text-sm">Solicitar Factura (Añade 16% IVA)</span>
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
+              <div>
+                <p className="text-gray-500">Subtotal</p>
+                <p className="font-semibold text-gray-900">${costos.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">IVA</p>
+                <p className="font-semibold text-gray-900">${costos.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+              </div>
+              <div>
+                <p className="text-gray-500">Total</p>
+                <p className="font-semibold text-gray-900">${costos.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+              </div>
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">
