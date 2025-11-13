@@ -342,23 +342,35 @@ function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]
     id_cliente: '',
     nombre: '',
     especie: 'Perro',
-    raza: '',
+    raza: 'Mestizo',
+    raza_otra: '',
     genero: 'Macho',
     edad: '',
+    peso: '',
     fecha_ultima_vacuna: '',
     historial_medico: '',
   });
   const [submitting, setSubmitting] = useState(false);
+  const [clientSearch, setClientSearch] = useState('');
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSubmitting(true);
 
     try {
+      const razaParaGuardar = formData.raza === 'Otro' ? formData.raza_otra : formData.raza;
+
       const { error } = await supabase.from('mascotas').insert([
         {
-          ...formData,
+          id_cliente: formData.id_cliente,
+          nombre: formData.nombre,
+          especie: formData.especie,
+          raza: razaParaGuardar || null,
+          genero: formData.genero,
           edad: formData.edad ? parseInt(formData.edad) : null,
+          peso: formData.peso ? parseFloat(formData.peso) : null,
+          fecha_ultima_vacuna: formData.fecha_ultima_vacuna || null,
+          historial_medico: formData.historial_medico || '',
         },
       ]);
 
@@ -381,17 +393,28 @@ function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Cliente*</label>
-            <select
-              required
-              value={formData.id_cliente}
-              onChange={(e) => setFormData({ ...formData, id_cliente: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Seleccionar cliente</option>
-              {clientes.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
+            <div className="space-y-2">
+              <input
+                type="text"
+                placeholder="Buscar cliente..."
+                value={clientSearch}
+                onChange={(e) => setClientSearch(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+              <select
+                required
+                value={formData.id_cliente}
+                onChange={(e) => setFormData({ ...formData, id_cliente: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Seleccionar cliente</option>
+                {clientes
+                  .filter((c) => c.nombre.toLowerCase().includes(clientSearch.toLowerCase()))
+                  .map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+              </select>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Nombre*</label>
@@ -433,12 +456,22 @@ function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Raza</label>
-              <input
-                type="text"
+              <select
                 value={formData.raza}
                 onChange={(e) => setFormData({ ...formData, raza: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
+              >
+                <option value="Mestizo">Mestizo</option>
+                <option value="Chihuahua">Chihuahua</option>
+                <option value="Schnauzer">Schnauzer</option>
+                <option value="Labrador Retriever">Labrador Retriever</option>
+                <option value="Golden Retriever">Golden Retriever</option>
+                <option value="Pug">Pug</option>
+                <option value="Poodle (Caniche)">Poodle (Caniche)</option>
+                <option value="Bulldog Francés">Bulldog Francés</option>
+                <option value="Pastor Alemán">Pastor Alemán</option>
+                <option value="Otro">Otro</option>
+              </select>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Edad (años)</label>
@@ -450,6 +483,30 @@ function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
+          </div>
+          {formData.raza === 'Otro' && (
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">Especificar otra raza*</label>
+              <input
+                type="text"
+                required
+                value={formData.raza_otra}
+                onChange={(e) => setFormData({ ...formData, raza_otra: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+            </div>
+          )}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Peso (kg)*</label>
+            <input
+              type="number"
+              step="0.1"
+              min="0"
+              required
+              value={formData.peso}
+              onChange={(e) => setFormData({ ...formData, peso: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+            />
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Última Vacuna</label>
