@@ -175,7 +175,7 @@ import { useEffect, useState } from 'react';
                      {Number(transaccion.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} 
                    </td> 
                  </tr> 
-               ))} 
+               )})} 
              </tbody> 
            </table> 
          </div> 
