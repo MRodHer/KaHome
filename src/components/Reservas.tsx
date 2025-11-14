@@ -215,9 +215,11 @@ function NewReservaModal({
     alimento_horarios: '',
     servicios_extra_seleccionados: {} as Record<string, boolean>,
     solicita_factura: false,
+    metodo_pago_anticipo: 'Pendiente',
+    monto_anticipo: '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [costos, setCostos] = useState({ subtotal: 0, iva: 0, total: 0 });
+  const [costos, setCostos] = useState({ subtotal: 0, iva: 0, total: 0, dias: 0 });
 
   const clientesFiltrados = clienteSearch.trim()
     ? clientes.filter(c => c.nombre.toLowerCase().includes(clienteSearch.trim().toLowerCase()))
@@ -233,189 +235,164 @@ function NewReservaModal({
 
   // Recalcular costos cuando cambien inputs relevantes
   useEffect(() => {
-    try {
-      if (!servicioSeleccionado || !formData.fecha_inicio || !formData.fecha_fin) {
-        setCostos({ subtotal: 0, iva: 0, total: 0 });
-        return;
-      }
+    const nuevosCostos = calcularCostosReserva(
+      formData,
+      servicioSeleccionado,
+      mascotaSeleccionada,
+      tarifasPeso,
+      serviciosExtra
+    );
+    setCostos(nuevosCostos);
+  }, [
+    formData.fecha_inicio,
+    formData.fecha_fin,
+    formData.id_servicio,
+    formData.id_mascota,
+    formData.solicita_factura,
+    formData.servicios_extra_seleccionados,
+    servicioSeleccionado,
+    mascotaSeleccionada,
+    tarifasPeso,
+    serviciosExtra,
+  ]);
 
-      const inicio = new Date(formData.fecha_inicio);
-      const fin = new Date(formData.fecha_fin);
-      const dias = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
-
-      // Tarifa por peso
-      let tarifaDiaria = servicioSeleccionado.precio_base;
-      if (mascotaSeleccionada && tarifasPeso.length > 0) {
-        const peso = mascotaSeleccionada.peso || 0;
-        const tarifaData = tarifasPeso.find(t => peso > t.peso_min && peso <= t.peso_max);
-        if (tarifaData) {
-          if (servicioSeleccionado.nombre === 'Pensión') {
-            tarifaDiaria = tarifaData.tarifa_noche;
-          } else if (servicioSeleccionado.nombre === 'Guardería') {
-            tarifaDiaria = tarifaData.tarifa_guarderia;
-          }
-        }
-      }
-      const costo_base = tarifaDiaria * dias;
-
-      // Servicios extra
-      let costo_servicios_extra = 0;
-      for (const servicioId in formData.servicios_extra_seleccionados) {
-        if (formData.servicios_extra_seleccionados[servicioId]) {
-          const extra = serviciosExtra.find(s => s.id === servicioId);
-          if (extra) {
-            const esPorDia = /\(por día\)/i.test(extra.nombre);
-            const cantidad = esPorDia ? dias : 1;
-            costo_servicios_extra += Number(extra.precio) * cantidad;
-          }
-        }
-      }
-
-      const subtotal = costo_base + costo_servicios_extra;
-      const iva = formData.solicita_factura ? subtotal * 0.16 : 0;
-      const total = subtotal + iva;
-      setCostos({ subtotal, iva, total });
-    } catch (err) {
-      setCostos({ subtotal: 0, iva: 0, total: 0 });
-    }
-  }, [formData, servicioSeleccionado, mascotaSeleccionada, tarifasPeso, serviciosExtra]);
-
-  async function handleSubmit(e: React.FormEvent) {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
-      // Validaciones básicas
-      if (!servicioSeleccionado || !mascotaSeleccionada || !clienteSeleccionado) {
-        throw new Error('Debe seleccionar cliente, mascota y servicio');
+      const { subtotal, iva, total, dias } = calcularCostosReserva(
+        formData,
+        servicioSeleccionado,
+        mascotaSeleccionada,
+        tarifasPeso,
+        serviciosExtra
+      );
+
+      if (total === 0 || dias === 0) {
+        throw new Error('Fechas inválidas o datos incompletos para calcular el costo.');
       }
 
-      const inicio = new Date(formData.fecha_inicio);
-      const fin = new Date(formData.fecha_fin);
-      if (isNaN(inicio.getTime()) || isNaN(fin.getTime()) || fin < inicio) {
-        throw new Error('Fechas inválidas');
+      let alimentoId = formData.id_alimento;
+      if (alimentoId === 'otro' && formData.nuevo_alimento) {
+        const { data: nuevoAlimento, error: alimentoError } = await supabase
+          .from('alimentos')
+          .insert({ nombre: formData.nuevo_alimento })
+          .select()
+          .single();
+        if (alimentoError) throw alimentoError;
+        alimentoId = nuevoAlimento.id;
       }
-      const dias = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
 
-      // Tarifa por peso
-      const peso = mascotaSeleccionada.peso || 0;
-      const tarifaData = tarifasPeso.find(t => peso > t.peso_min && peso <= t.peso_max);
-      let tarifaDiaria = servicioSeleccionado.precio_base;
-      if (tarifaData) {
-        if (servicioSeleccionado.nombre === 'Pensión') {
-          tarifaDiaria = tarifaData.tarifa_noche;
-        } else if (servicioSeleccionado.nombre === 'Guardería') {
-          tarifaDiaria = tarifaData.tarifa_guarderia;
-        }
+      const reservaData = {
+        id_cliente: formData.id_cliente,
+        id_mascota: formData.id_mascota,
+        id_servicio: formData.id_servicio,
+        fecha_inicio: formData.fecha_inicio,
+        fecha_fin: formData.fecha_fin,
+        notas: formData.notas,
+        pertenencias: formData.pertenencias,
+        id_alimento: alimentoId,
+        alimento_cantidad: formData.alimento_cantidad,
+        alimento_frecuencia: formData.alimento_frecuencia,
+        alimento_horarios: formData.alimento_horarios,
+        costo_total: total,
+        costo_iva: iva,
+        solicita_factura: formData.solicita_factura,
+        estado: 'Confirmada',
+      };
+
+      const { data: reserva, error: reservaError } = await supabase
+        .from('reservas')
+        .insert(reservaData)
+        .select()
+        .single();
+
+      if (reservaError) throw reservaError;
+
+      const nuevaReserva = reserva;
+
+      // --- INICIO DE CORRECCIÓN (NOM-151) ---
+      try {
+        // Simulación de la generación del contrato
+        const urlDocumentoSimulada = `/api/contratos/generar?id=${nuevaReserva.id}`;
+
+        await supabase.from('contratos').insert([
+          {
+            id_reserva: nuevaReserva.id,
+            url_documento: urlDocumentoSimulada,
+            estado_firma: 'Pendiente',
+          },
+        ]);
+
+      } catch (contratoError) {
+        console.error('Error al generar contrato:', contratoError);
+        // No se detiene la reserva, solo se registra el fallo
       }
-      const costo_base = tarifaDiaria * dias;
+      // --- FIN DE CORRECCIÓN ---
 
-      // Servicios extra
-      let costo_servicios_extra = 0;
-      const serviciosParaGuardar: { id_servicio_extra: string; cantidad: number; precio_cobrado: number }[] = [];
+      const serviciosParaGuardar: { id_reserva: string; id_servicio_extra: string; cantidad: number; precio_cobrado: number }[] = [];
       for (const servicioId in formData.servicios_extra_seleccionados) {
         if (formData.servicios_extra_seleccionados[servicioId]) {
           const extra = serviciosExtra.find(s => s.id === servicioId);
           if (extra) {
             const esPorDia = /\(por día\)/i.test(extra.nombre);
             const cantidad = esPorDia ? dias : 1;
-            const precio = Number(extra.precio) * cantidad;
-            costo_servicios_extra += precio;
-            serviciosParaGuardar.push({ id_servicio_extra: extra.id, cantidad, precio_cobrado: Number(extra.precio) });
+            serviciosParaGuardar.push({
+              id_reserva: reserva.id,
+              id_servicio_extra: extra.id,
+              cantidad,
+              precio_cobrado: Number(extra.precio),
+            });
           }
         }
       }
 
-      // IVA
-      const subtotal = costo_base + costo_servicios_extra;
-      const costo_iva = formData.solicita_factura ? subtotal * 0.16 : 0;
-      const costo_total = subtotal + costo_iva;
-
-      // Manejo de alimentos: si el usuario selecciona "otro", crear/usar marca
-      let id_alimento_reserva: string | null = null;
-      if (formData.id_alimento === 'otro' && formData.nuevo_alimento.trim()) {
-        const nombreNuevo = formData.nuevo_alimento.trim();
-        // Intentar insertar, si ya existe, recuperar ID
-        const insertRes = await supabase.from('alimentos').insert([{ nombre: nombreNuevo }]).select();
-        if (insertRes.error) {
-          // Intentar seleccionar por nombre (por conflicto de unique)
-          const selRes = await supabase.from('alimentos').select('*').eq('nombre', nombreNuevo).limit(1);
-          if (selRes.error || !selRes.data || selRes.data.length === 0) {
-            throw insertRes.error;
-          }
-          id_alimento_reserva = selRes.data[0].id;
-        } else if (insertRes.data && insertRes.data[0]) {
-          id_alimento_reserva = insertRes.data[0].id;
-        }
-      } else if (formData.id_alimento) {
-        id_alimento_reserva = formData.id_alimento;
+      if (serviciosParaGuardar.length > 0) {
+        const { error: rseError } = await supabase.from('reserva_servicios_extra').insert(serviciosParaGuardar);
+        if (rseError) throw rseError;
       }
+      
+      const transaccionData = {
+        id_reserva: reserva.id,
+        id_cliente: formData.id_cliente,
+        tipo: 'Ingreso',
+        descripcion: `Reserva #${reserva.id} - ${servicioSeleccionado?.nombre}`,
+        monto: total,
+        subtotal: subtotal,
+        iva: iva,
+        metodo_pago: 'Pendiente',
+        estado_pago: 'Pendiente',
+      };
 
-      // Insertar reserva y obtener ID
-      const reservaInsert = await supabase
-        .from('reservas')
-        .insert([
-          {
-            id_cliente: formData.id_cliente,
-            id_mascota: formData.id_mascota,
-            id_servicio: formData.id_servicio,
-            id_ubicacion: clienteSeleccionado.id_ubicacion,
-            fecha_inicio: formData.fecha_inicio,
-            fecha_fin: formData.fecha_fin,
-            estado: 'Confirmada',
-            costo_total,
-            notas: formData.notas || '',
-            pertenencias: formData.pertenencias,
-            solicita_factura: formData.solicita_factura,
-            costo_iva,
-            id_alimento: id_alimento_reserva,
-            alimento_cantidad: formData.alimento_cantidad || null,
-            alimento_frecuencia: formData.alimento_frecuencia || null,
-            alimento_horarios: formData.alimento_horarios || null,
-          },
-        ])
-        .select();
-
-      if (reservaInsert.error || !reservaInsert.data || reservaInsert.data.length === 0) {
-        throw reservaInsert.error || new Error('No se pudo crear la reserva');
-      }
-
-      const nuevaReserva = reservaInsert.data[0];
-
-      // Insertar servicios extra asociados
-      for (const item of serviciosParaGuardar) {
-        await supabase.from('reserva_servicios_extra').insert([
-          {
-            id_reserva: nuevaReserva.id,
-            id_servicio_extra: item.id_servicio_extra,
-            cantidad: item.cantidad,
-            precio_cobrado: item.precio_cobrado,
-          },
-        ]);
-      }
-
-      // Registrar transacción financiera
-      await supabase.from('transacciones_financieras').insert([
-        {
+      const { error: transaccionError } = await supabase.from('transacciones').insert(transaccionData);
+      if (transaccionError) throw transaccionError;
+      
+      if (formData.monto_anticipo && Number(formData.monto_anticipo) > 0) {
+        const anticipoData = {
+          id_reserva: reserva.id,
+          id_cliente: formData.id_cliente,
           tipo: 'Ingreso',
-          monto: costo_total,
-          fecha: formData.fecha_inicio,
-          descripcion: `Reserva de ${servicioSeleccionado.nombre}`,
-          id_reserva: nuevaReserva.id,
-          id_ubicacion: clienteSeleccionado.id_ubicacion,
-          categoria: 'Servicios',
-        },
-      ]);
+          descripcion: `Anticipo Reserva #${reserva.id}`,
+          monto: Number(formData.monto_anticipo),
+          subtotal: Number(formData.monto_anticipo) / (formData.solicita_factura ? 1.16 : 1),
+          iva: formData.solicita_factura ? Number(formData.monto_anticipo) - (Number(formData.monto_anticipo) / 1.16) : 0,
+          metodo_pago: formData.metodo_pago_anticipo,
+          estado_pago: 'Pagado',
+        };
+        const { error: anticipoError } = await supabase.from('transacciones').insert(anticipoData);
+        if (anticipoError) throw anticipoError;
+      }
 
-      onSuccess();
+      alert('Reserva creada con éxito!');
       onClose();
-    } catch (error) {
-      console.error('Error creating reserva:', error);
-      alert('Error al crear reserva');
+      onSuccess();
+    } catch (error: any) {
+      alert(`Error al crear la reserva: ${error.message}`);
     } finally {
       setSubmitting(false);
     }
-  }
+  };
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
@@ -614,32 +591,80 @@ function NewReservaModal({
             </div>
           </fieldset>
 
-          {/* Sección de Facturación */}
-          <div className="border border-gray-200 rounded-lg p-4">
-            <div className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={formData.solicita_factura}
-                onChange={(e) => setFormData({ ...formData, solicita_factura: e.target.checked })}
-              />
-              <span className="text-sm">Solicitar Factura (Añade 16% IVA)</span>
+          {/* Sección de Facturación y Pagos */}
+          <div className="border border-gray-200 rounded-lg p-4 space-y-4">
+            {/* Facturación */}
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-2">Facturación</p>
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="solicita_factura"
+                  checked={formData.solicita_factura}
+                  onChange={(e) => setFormData({ ...formData, solicita_factura: e.target.checked })}
+                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                />
+                <label htmlFor="solicita_factura" className="text-sm text-gray-700">
+                  Solicitar Factura (Añade 16% IVA)
+                </label>
+              </div>
             </div>
-            <div className="mt-3 grid grid-cols-3 gap-2 text-sm">
-              <div>
-                <p className="text-gray-500">Subtotal</p>
-                <p className="font-semibold text-gray-900">${costos.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+            
+            {/* Gestión de Pago */}
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-2">Gestión de Pago</p>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Monto Anticipo</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={formData.monto_anticipo}
+                      onChange={(e) => setFormData({ ...formData, monto_anticipo: e.target.value })}
+                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg"
+                      placeholder="0.00"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Método de Pago (Anticipo)</label>
+                  <select
+                    value={formData.metodo_pago_anticipo}
+                    onChange={(e) => setFormData({ ...formData, metodo_pago_anticipo: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                  >
+                    <option value="Pendiente">Pendiente</option>
+                    <option value="Efectivo">Efectivo</option>
+                    <option value="Transferencia">Transferencia</option>
+                    <option value="Tarjeta">Tarjeta</option>
+                  </select>
+                </div>
               </div>
-              <div>
-                <p className="text-gray-500">IVA</p>
-                <p className="font-semibold text-gray-900">${costos.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-              </div>
-              <div>
-                <p className="text-gray-500">Total</p>
-                <p className="font-semibold text-gray-900">${costos.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+            </div>
+            
+            {/* Resumen de Costos */}
+            <div>
+              <p className="text-sm font-semibold text-gray-700 mb-2">Resumen de Costos</p>
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                <div>
+                  <p className="text-gray-500">Subtotal</p>
+                  <p className="font-semibold text-gray-900">${costos.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">IVA</p>
+                  <p className="font-semibold text-gray-900">${costos.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                </div>
+                <div>
+                  <p className="text-gray-500">Total</p>
+                  <p className="font-semibold text-gray-900">${costos.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
+                </div>
               </div>
             </div>
           </div>
-
+          
           <div className="flex gap-3 pt-4">
             <button
               type="button"
@@ -660,4 +685,55 @@ function NewReservaModal({
       </div>
     </div>
   );
+}
+
+function calcularCostosReserva(
+  formData: any, // El tipo del estado formData
+  servicioSeleccionado: Servicio | undefined,
+  mascotaSeleccionada: Mascota | undefined,
+  tarifasPeso: TarifaPeso[],
+  serviciosExtra: ServicioExtra[]
+) {
+  if (!servicioSeleccionado || !formData.fecha_inicio || !formData.fecha_fin || !mascotaSeleccionada) {
+    return { subtotal: 0, iva: 0, total: 0, dias: 0 };
+  }
+
+  try {
+    const inicio = new Date(formData.fecha_inicio);
+    const fin = new Date(formData.fecha_fin);
+    if (fin < inicio) return { subtotal: 0, iva: 0, total: 0, dias: 0 };
+
+    const dias = Math.ceil((fin.getTime() - inicio.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+
+    // Tarifa por peso
+    let tarifaDiaria = servicioSeleccionado.precio_base;
+    const peso = mascotaSeleccionada.peso || 0;
+    const tarifaData = tarifasPeso.find(t => peso > t.peso_min && peso <= t.peso_max);
+    if (tarifaData) {
+      if (servicioSeleccionado.nombre === 'Pensión') tarifaDiaria = tarifaData.tarifa_noche;
+      else if (servicioSeleccionado.nombre === 'Guardería') tarifaDiaria = tarifaData.tarifa_guarderia;
+    }
+    const costo_base = tarifaDiaria * dias;
+
+    // Servicios extra
+    let costo_servicios_extra = 0;
+    for (const servicioId in formData.servicios_extra_seleccionados) {
+      if (formData.servicios_extra_seleccionados[servicioId]) {
+        const extra = serviciosExtra.find(s => s.id === servicioId);
+        if (extra) {
+          const esPorDia = /\(por día\)/i.test(extra.nombre);
+          const cantidad = esPorDia ? dias : 1;
+          costo_servicios_extra += Number(extra.precio) * cantidad;
+        }
+      }
+    }
+
+    const subtotal = costo_base + costo_servicios_extra;
+    const iva = formData.solicita_factura ? subtotal * 0.16 : 0;
+    const total = subtotal + iva;
+    return { subtotal, iva, total, dias };
+
+  } catch (err) {
+    return { subtotal: 0, iva: 0, total: 0, dias: 0 };
+  }
 }

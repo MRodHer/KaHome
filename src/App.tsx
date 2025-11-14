@@ -3,9 +3,10 @@ import { Dashboard } from './components/Dashboard';
 import { ClientesMascotas } from './components/ClientesMascotas';
 import { Reservas } from './components/Reservas';
 import { Finanzas } from './components/Finanzas';
-import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, Dog } from 'lucide-react';
 
-type View = 'dashboard' | 'clientes' | 'reservas' | 'finanzas';
+// Exportar el tipo View para que otros componentes lo puedan usar
+export type View = 'dashboard' | 'clientes' | 'reservas' | 'finanzas';
 
 function App() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -29,8 +30,11 @@ function App() {
           <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200">
             {sidebarOpen && (
               <div>
-                <h1 className="text-xl font-bold text-gray-900">PetCare SaaS</h1>
-                <p className="text-xs text-gray-500">Gestión de Pensiones</p>
+                <div className="flex items-center gap-2">
+                  <Dog className="w-6 h-6 text-blue-700" />
+                  <h1 className="text-xl font-bold text-gray-900">PetCare SaaS</h1>
+                </div>
+                <p className="text-xs text-gray-500 ml-8">Gestión de Pensiones</p>
               </div>
             )}
             <button
@@ -63,11 +67,12 @@ function App() {
           </nav>
 
           <div className="p-4 border-t border-gray-200">
-            {sidebarOpen ? (
-              <div className="text-xs text-gray-500">
-                <p className="font-semibold text-gray-700 mb-1">Sistema v1.0</p>
-                <p>Cumplimiento LFPDPPP y NOM-151</p>
-              </div>
+             {sidebarOpen ? (
+               <div className="text-xs text-gray-500">
+                 {/* Versión del sistema con cambios de BD y funcionalidades actualizadas */}
+                 <p className="font-semibold text-gray-700 mb-1">Sistema v1.2</p>
+                 <p>Cumplimiento LFPDPPP y NOM-151</p>
+               </div>
             ) : (
               <div className="w-2 h-2 bg-green-500 rounded-full mx-auto"></div>
             )}

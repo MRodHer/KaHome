@@ -10,6 +10,7 @@ export function ClientesMascotas() {
   const [loading, setLoading] = useState(true);
   const [showNewClienteForm, setShowNewClienteForm] = useState(false);
   const [showNewMascotaForm, setShowNewMascotaForm] = useState(false);
+  const [mascotaSeleccionada, setMascotaSeleccionada] = useState<Mascota | null>(null);
 
   useEffect(() => {
     loadData();
@@ -152,7 +153,7 @@ export function ClientesMascotas() {
                       </td>
                       <td className="px-4 py-3">
                         <div className="flex gap-2">
-                          <button className="p-1 text-blue-600 hover:bg-blue-50 rounded">
+                          <button className="p-1 text-blue-600 hover:bg-blue-50 rounded" onClick={() => setMascotaSeleccionada(mascota)}>
                             <Eye className="w-4 h-4" />
                           </button>
                           <button className="p-1 text-gray-600 hover:bg-gray-50 rounded">
@@ -198,7 +199,31 @@ export function ClientesMascotas() {
       )}
       {showNewMascotaForm && (
         <NewMascotaModal clientes={clientes} onClose={() => setShowNewMascotaForm(false)} onSuccess={loadData} />
-      )}
+      )}\n      {mascotaSeleccionada && <ViewMascotaModal mascota={mascotaSeleccionada} onClose={() => setMascotaSeleccionada(null)} />}
+    </div>
+  );
+}
+
+function ViewMascotaModal({ mascota, onClose }: { mascota: Mascota; onClose: () => void; }) {
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">{mascota.nombre}</h2>
+        <p><strong>Especie:</strong> {mascota.especie}</p>
+        <p><strong>Raza:</strong> {mascota.raza}</p>
+        <p><strong>Edad:</strong> {mascota.edad} años</p>
+        <p><strong>Peso:</strong> {mascota.peso} kg</p>
+        <p><strong>Última vacuna:</strong> {mascota.fecha_ultima_vacuna ? new Date(mascota.fecha_ultima_vacuna).toLocaleDateString('es-MX') : 'N/A'}</p>
+        <div className="mt-4">
+          <button
+            type="button"
+            onClick={onClose}
+            className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+          >
+            Cerrar
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -231,36 +256,27 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
     setFormData({ ...formData, codigo_postal: cp });
 
     if (cp.length === 5) {
-      // --- Simulación de API ---
-      // Aquí es donde harías la llamada a una API de Códigos Postales
-      // Ejemplo: const data = await fetch(`https://api.tucp.com/${cp}`);
-      // Por ahora, simulamos el relleno:
-
-      /*
-      // EJEMPLO DE CÓMO SE VERÍA CON UNA API REAL:
       try {
-        setSubmitting(true); // Muestra un spinner
-        const response = await fetch(`https://tu-api-de-cp.com/api/cp/${cp}`);
+        setSubmitting(true);
+        const response = await fetch(`https://api.sepomex.com/v2/info_cp/${cp}`);
         const data = await response.json();
 
-        // Asumiendo que la API devuelve { colonia: '...', municipio: '...', estado: '...' }
-        setFormData(prev => ({
-          ...prev,
-          colonia: data.colonia || '',
-          municipio: data.municipio || '',
-          estado: data.estado || '',
-        }));
+        if (data && data.cp) {
+          setFormData(prev => ({
+            ...prev,
+            colonia: data.colonias.join(', '),
+            municipio: data.municipio,
+            estado: data.estado,
+          }));
+        } else {
+          throw new Error('Código Postal no encontrado');
+        }
       } catch (error) {
         console.error('Error al buscar CP:', error);
-        // Limpiar campos si falla
         setFormData(prev => ({ ...prev, colonia: '', municipio: '', estado: '' }));
       } finally {
         setSubmitting(false);
       }
-      */
-
-      // Dejamos los campos para que el usuario los llene manualmente por ahora
-      console.log('Buscando CP (simulado):', cp);
     }
   };
   // --- FIN DE MODIFICACIÓN ---
@@ -334,7 +350,7 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
           {/* --- FIN DE MODIFICACIÓN --- */}
 
           <div>
-            <label className="block text sm font-medium text-gray-700 mb-1">Nombre Completo*</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo*</label>
             <input
               type="text"
               required
@@ -454,7 +470,6 @@ function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubi
     </div>
   );
 }
-// NewClienteModal eliminado. Se reemplazará por una nueva implementación provista por el usuario.
 
 function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]; onClose: () => void; onSuccess: () => void }) {
   const [formData, setFormData] = useState({
@@ -468,6 +483,7 @@ function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]
     peso: '',
     fecha_ultima_vacuna: '',
     historial_medico: '',
+    url_foto: '', // Nuevo
   });
   const [submitting, setSubmitting] = useState(false);
   const [clientSearch, setClientSearch] = useState('');
@@ -490,9 +506,10 @@ function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]
           peso: formData.peso ? parseFloat(formData.peso) : null,
           fecha_ultima_vacuna: formData.fecha_ultima_vacuna || null,
           historial_medico: formData.historial_medico || '',
+          url_foto: formData.url_foto || null, // Nuevo
         },
       ]);
-
+ 
       if (error) throw error;
 
       onSuccess();
@@ -644,6 +661,16 @@ function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               rows={3}
               placeholder="Alergias, medicamentos, condiciones especiales..."
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">URL de la Foto</label>
+            <input
+              type="url"
+              value={formData.url_foto}
+              onChange={(e) => setFormData({ ...formData, url_foto: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              placeholder="https://ejemplo.com/foto.jpg"
             />
           </div>
           <div className="flex gap-3 pt-4">
