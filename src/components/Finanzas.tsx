@@ -8,6 +8,7 @@ import { useEffect, useState } from 'react';
    const [loading, setLoading] = useState(true); 
    const [filtroTipo, setFiltroTipo] = useState<string>('Todos'); 
    const [showNewTransaccion, setShowNewTransaccion] = useState(false); 
+   const [editingTransaccion, setEditingTransaccion] = useState<TransaccionFinanciera | null>(null);
  
    useEffect(() => { 
      loadData(); 
@@ -139,6 +140,7 @@ import { useEffect, useState } from 'react';
                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Categoría</th> 
                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Ubicación</th> 
                  <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Monto</th> 
+                 <th className="px-4 py-3 text-right text-sm font-semibold text-gray-700">Acciones</th>
                </tr> 
              </thead> 
              <tbody> 
@@ -147,7 +149,7 @@ import { useEffect, useState } from 'react';
                  return ( 
                    <tr key={transaccion.id} className="border-b border-gray-100 hover:bg-gray-50"> 
                      <td className="px-4 py-3 text-gray-700"> 
-                       {new Date(transaccion.fecha).toLocaleDateString('es-MX')} 
+                       {new Date(transaccion.fecha).toLocaleDateString('es-ES')} 
                      </td> 
                      <td className="px-4 py-3"> 
                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${ 
@@ -174,6 +176,20 @@ import { useEffect, useState } from 'react';
                      {transaccion.tipo === 'Ingreso' ? '+' : '-'}$ 
                      {Number(transaccion.monto).toLocaleString('es-MX', { minimumFractionDigits: 2 })} 
                    </td> 
+                   <td className="px-4 py-3 text-right">
+                   <button
+                        onClick={() => setEditingTransaccion(transaccion)}
+                        className="text-blue-500 hover:text-blue-700 mr-2"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </button>
+                   <button
+                        onClick={() => handleDeleteTransaccion(transaccion.id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </td>
                  </tr> 
                )})} 
              </tbody> 
@@ -197,7 +213,20 @@ import { useEffect, useState } from 'react';
        )} 
      </div> 
    ); 
- } 
+ }
+
+ async function handleDeleteTransaccion(id: string) {
+  if (window.confirm('¿Estás seguro de que quieres eliminar esta transacción?')) {
+    try {
+      const { error } = await supabase.from('transacciones_financieras').delete().eq('id', id);
+      if (error) throw error;
+      setTransacciones(transacciones.filter((t) => t.id !== id));
+    } catch (error) {
+      console.error('Error deleting transaction:', error);
+      alert('Error al eliminar la transacción.');
+    }
+  }
+}
  
  function FinanceCard({ 
    title, 
@@ -229,6 +258,140 @@ import { useEffect, useState } from 'react';
    ); 
  } 
  
+ function EditTransaccionModal({ transaccion, onClose, onSuccess, ubicaciones }) {
+  const [formData, setFormData] = useState({
+    ...transaccion,
+    fecha: new Date(transaccion.fecha).toISOString().split('T')[0],
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const { error } = await supabase
+        .from('transacciones_financieras')
+        .update({ ...formData, monto: parseFloat(formData.monto) })
+        .eq('id', transaccion.id);
+
+      if (error) throw error;
+
+      onSuccess();
+      onClose();
+    } catch (error) {
+      console.error('Error updating transaction:', error);
+      alert('Error al actualizar la transacción.');
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-md">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Editar Transacción</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Tipo*</label>
+            <select
+              required
+              value={formData.tipo}
+              onChange={(e) => setFormData({ ...formData, tipo: e.target.value as 'Ingreso' | 'Egreso' })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="Ingreso">Ingreso</option>
+              <option value="Egreso">Egreso</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Monto*</label>
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
+              <input
+                type="number"
+                required
+                step="0.01"
+                min="0"
+                value={formData.monto}
+                onChange={(e) => setFormData({ ...formData, monto: e.target.value })}
+                className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha*</label>
+            <input
+              type="date"
+              required
+              value={formData.fecha}
+              onChange={(e) => setFormData({ ...formData, fecha: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
+            <select
+              value={formData.categoria}
+              onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="">Seleccionar</option>
+              <option value="Servicios">Servicios</option>
+              <option value="Nómina">Nómina</option>
+              <option value="Insumos">Insumos</option>
+              <option value="Mantenimiento">Mantenimiento</option>
+              <option value="Servicios Públicos">Servicios Públicos</option>
+              <option value="Otros">Otros</option>
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación*</label>
+            <select
+              required
+              value={formData.id_ubicacion}
+              onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              disabled={ubicaciones.length === 0}
+            >
+              <option value="">Seleccionar ubicación</option>
+              {ubicaciones.map((u) => (
+                <option key={u.id} value={u.id}>{u.nombre}</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Descripción*</label>
+            <textarea
+              required
+              value={formData.descripcion}
+              onChange={(e) => setFormData({ ...formData, descripcion: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              rows={3}
+              placeholder="Describe la transacción..."
+            />
+          </div>
+
+          <div className="flex gap-3 pt-4">
+            <button type="button" onClick={onClose} className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
+              Cancelar
+            </button>
+            <button type="submit" disabled={submitting} className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50">
+              {submitting ? 'Guardando...' : 'Guardar Cambios'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
  function NewTransaccionModal({ 
    onClose, 
    onSuccess, 

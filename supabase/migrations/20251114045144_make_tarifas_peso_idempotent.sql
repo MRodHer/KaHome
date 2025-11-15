@@ -1,0 +1,1 @@
+ALTER TABLE tarifas_peso ADD CONSTRAINT tarifas_peso_unique_range UNIQUE (peso_min, peso_max);

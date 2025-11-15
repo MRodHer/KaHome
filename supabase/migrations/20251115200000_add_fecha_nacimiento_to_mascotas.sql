@@ -1,0 +1,1 @@
+ALTER TABLE public.mascotas ADD COLUMN fecha_de_nacimiento DATE;

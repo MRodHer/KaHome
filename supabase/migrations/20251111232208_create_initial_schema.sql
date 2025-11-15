@@ -102,7 +102,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- 1. Tabla de Ubicaciones
 CREATE TABLE IF NOT EXISTS ubicaciones (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  nombre text NOT NULL,
+  nombre text NOT NULL UNIQUE,
   direccion text NOT NULL,
   capacidad_total integer NOT NULL DEFAULT 0,
   created_at timestamptz DEFAULT now()
@@ -110,10 +110,16 @@ CREATE TABLE IF NOT EXISTS ubicaciones (
 
 ALTER TABLE ubicaciones ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios autenticados pueden ver ubicaciones"
-  ON ubicaciones FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'ubicaciones' AND policyname = 'Usuarios autenticados pueden ver ubicaciones'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden ver ubicaciones"
+      ON ubicaciones FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
 -- 2. Tabla de Clientes
 CREATE TABLE IF NOT EXISTS clientes (
@@ -130,21 +136,39 @@ CREATE TABLE IF NOT EXISTS clientes (
 
 ALTER TABLE clientes ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios autenticados pueden ver clientes"
-  ON clientes FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'clientes' AND policyname = 'Usuarios autenticados pueden ver clientes'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden ver clientes"
+      ON clientes FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
-CREATE POLICY "Usuarios autenticados pueden crear clientes"
-  ON clientes FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'clientes' AND policyname = 'Usuarios autenticados pueden crear clientes'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden crear clientes"
+      ON clientes FOR INSERT
+      TO authenticated
+      WITH CHECK (true);
+  END IF;
+END $$;
 
-CREATE POLICY "Usuarios autenticados pueden actualizar clientes"
-  ON clientes FOR UPDATE
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'clientes' AND policyname = 'Usuarios autenticados pueden actualizar clientes'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden actualizar clientes"
+      ON clientes FOR UPDATE
+      TO authenticated
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END $$;
 
 -- 3. Tabla de Mascotas
 CREATE TABLE IF NOT EXISTS mascotas (
@@ -164,28 +188,47 @@ CREATE TABLE IF NOT EXISTS mascotas (
 
 ALTER TABLE mascotas ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios autenticados pueden ver mascotas"
-  ON mascotas FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'mascotas' AND policyname = 'Usuarios autenticados pueden ver mascotas'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden ver mascotas"
+      ON mascotas FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
-CREATE POLICY "Usuarios autenticados pueden crear mascotas"
-  ON mascotas FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'mascotas' AND policyname = 'Usuarios autenticados pueden crear mascotas'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden crear mascotas"
+      ON mascotas FOR INSERT
+      TO authenticated
+      WITH CHECK (true);
+  END IF;
+END $$;
 
-CREATE POLICY "Usuarios autenticados pueden actualizar mascotas"
-  ON mascotas FOR UPDATE
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'mascotas' AND policyname = 'Usuarios autenticados pueden actualizar mascotas'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden actualizar mascotas"
+      ON mascotas FOR UPDATE
+      TO authenticated
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END $$;
 
 -- 4. Tabla de Servicios
 CREATE TABLE IF NOT EXISTS servicios (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  nombre text NOT NULL,
+  nombre text NOT NULL UNIQUE,
   descripcion text,
   precio_base decimal(10,2) NOT NULL DEFAULT 0,
+  tipo_servicio TEXT,
   duracion_estimada integer DEFAULT 0,
   activo boolean DEFAULT true,
   created_at timestamptz DEFAULT now()
@@ -193,10 +236,16 @@ CREATE TABLE IF NOT EXISTS servicios (
 
 ALTER TABLE servicios ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios autenticados pueden ver servicios"
-  ON servicios FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'servicios' AND policyname = 'Usuarios autenticados pueden ver servicios'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden ver servicios"
+      ON servicios FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
 -- 5. Tabla de Reservas
 CREATE TABLE IF NOT EXISTS reservas (
@@ -215,21 +264,39 @@ CREATE TABLE IF NOT EXISTS reservas (
 
 ALTER TABLE reservas ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios autenticados pueden ver reservas"
-  ON reservas FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'reservas' AND policyname = 'Usuarios autenticados pueden ver reservas'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden ver reservas"
+      ON reservas FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
-CREATE POLICY "Usuarios autenticados pueden crear reservas"
-  ON reservas FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'reservas' AND policyname = 'Usuarios autenticados pueden crear reservas'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden crear reservas"
+      ON reservas FOR INSERT
+      TO authenticated
+      WITH CHECK (true);
+  END IF;
+END $$;
 
-CREATE POLICY "Usuarios autenticados pueden actualizar reservas"
-  ON reservas FOR UPDATE
-  TO authenticated
-  USING (true)
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'reservas' AND policyname = 'Usuarios autenticados pueden actualizar reservas'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden actualizar reservas"
+      ON reservas FOR UPDATE
+      TO authenticated
+      USING (true)
+      WITH CHECK (true);
+  END IF;
+END $$;
 
 -- 6. Tabla de Transacciones Financieras
 CREATE TABLE IF NOT EXISTS transacciones_financieras (
@@ -246,15 +313,27 @@ CREATE TABLE IF NOT EXISTS transacciones_financieras (
 
 ALTER TABLE transacciones_financieras ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios autenticados pueden ver transacciones"
-  ON transacciones_financieras FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'transacciones_financieras' AND policyname = 'Usuarios autenticados pueden ver transacciones'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden ver transacciones"
+      ON transacciones_financieras FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
-CREATE POLICY "Usuarios autenticados pueden crear transacciones"
-  ON transacciones_financieras FOR INSERT
-  TO authenticated
-  WITH CHECK (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'transacciones_financieras' AND policyname = 'Usuarios autenticados pueden crear transacciones'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden crear transacciones"
+      ON transacciones_financieras FOR INSERT
+      TO authenticated
+      WITH CHECK (true);
+  END IF;
+END $$;
 
 -- 7. Tabla de Personal
 CREATE TABLE IF NOT EXISTS personal (
@@ -269,10 +348,16 @@ CREATE TABLE IF NOT EXISTS personal (
 
 ALTER TABLE personal ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios autenticados pueden ver personal"
-  ON personal FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'personal' AND policyname = 'Usuarios autenticados pueden ver personal'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden ver personal"
+      ON personal FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
 -- 8. Tabla de Contratos
 CREATE TABLE IF NOT EXISTS contratos (
@@ -287,10 +372,16 @@ CREATE TABLE IF NOT EXISTS contratos (
 
 ALTER TABLE contratos ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY "Usuarios autenticados pueden ver contratos"
-  ON contratos FOR SELECT
-  TO authenticated
-  USING (true);
+DO $$ BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_policies WHERE schemaname = current_schema() AND tablename = 'contratos' AND policyname = 'Usuarios autenticados pueden ver contratos'
+  ) THEN
+    CREATE POLICY "Usuarios autenticados pueden ver contratos"
+      ON contratos FOR SELECT
+      TO authenticated
+      USING (true);
+  END IF;
+END $$;
 
 -- Crear índices para optimizar consultas
 CREATE INDEX IF NOT EXISTS idx_mascotas_cliente ON mascotas(id_cliente);

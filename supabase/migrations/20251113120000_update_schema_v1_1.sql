@@ -1,4 +1,4 @@
--- PetCare SaaS v1.1 – Actualización de esquema
+-- PetCare Kahome! v1.1 – Actualización de esquema
 -- Fecha: 2025-11-13
 -- Esta migración añade columnas y tablas necesarias para:
 -- - Peso de mascotas
@@ -81,6 +81,7 @@ END $$;
 CREATE TABLE IF NOT EXISTS alimentos (
   id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
   nombre text NOT NULL UNIQUE,
+  tipo_mascota TEXT,
   created_at timestamptz DEFAULT now()
 );
 

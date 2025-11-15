@@ -1,0 +1,29 @@
+
+[studio]
+port = 51000
+
+[api]
+port = 51001
+
+[db]
+port = 51002
+shadow_port = 51003
+
+[db.pooler]
+port = 51004
+
+[inbucket]
+port = 51005
+smtp_port = 51006
+pop3_port = 51007
+
+[functions.get_address_by_cp]
+enabled = true
+verify_jwt = true
+import_map = "./functions/get_address_by_cp/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/get_address_by_cp/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/get_address_by_cp/*.html" ]

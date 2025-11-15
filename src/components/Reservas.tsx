@@ -13,6 +13,7 @@ export function Reservas() {
   const [loading, setLoading] = useState(true);
   const [filtroEstado, setFiltroEstado] = useState<string>('Todas');
   const [showNewReservaForm, setShowNewReservaForm] = useState(false);
+  const [editingReserva, setEditingReserva] = useState<Reserva | null>(null);
 
   useEffect(() => {
     loadData();
@@ -43,6 +44,20 @@ export function Reservas() {
       setLoading(false);
     }
   }
+
+  const handleDeleteReserva = async (id: string) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta reserva?')) {
+      try {
+        // También podrías querer eliminar registros relacionados en otras tablas
+        // (transacciones, contratos, etc.) o manejarlo con políticas de Supabase (ON DELETE CASCADE)
+        await supabase.from('reservas').delete().eq('id', id);
+        setReservas(reservas.filter(r => r.id !== id));
+        alert('Reserva eliminada con éxito.');
+      } catch (error: any) {
+        alert(`Error al eliminar la reserva: ${error.message}`);
+      }
+    }
+  };
 
   const reservasFiltradas = reservas.filter(r =>
     filtroEstado === 'Todas' || r.estado === filtroEstado
@@ -121,7 +136,7 @@ export function Reservas() {
                       <div>
                         <p className="text-gray-500">Fechas</p>
                         <p className="font-medium text-gray-900">
-                          {new Date(reserva.fecha_inicio).toLocaleDateString('es-MX')} - {new Date(reserva.fecha_fin).toLocaleDateString('es-MX')}
+                          {new Date(reserva.fecha_inicio).toLocaleDateString('es-ES')} - {new Date(reserva.fecha_fin).toLocaleDateString('es-ES')}
                         </p>
                       </div>
                       <div>
@@ -137,9 +152,23 @@ export function Reservas() {
                       </div>
                     )}
                   </div>
-                  <button className="ml-4 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded">
-                    <CalendarIcon className="w-5 h-5" />
-                  </button>
+                  <div className="flex flex-col gap-2 ml-4">
+                    <button className="p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-50 rounded">
+                      <CalendarIcon className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={() => setEditingReserva(reserva)}
+                      className="p-2 text-blue-400 hover:text-blue-600 hover:bg-blue-50 rounded"
+                    >
+                      <Edit3 className="w-5 h-5" />
+                    </button>
+                    <button 
+                      onClick={() => handleDeleteReserva(reserva.id)}
+                      className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               </div>
             );
@@ -166,6 +195,23 @@ export function Reservas() {
           onSuccess={loadData}
         />
       )}
+
+      {editingReserva && (
+        <EditReservaModal
+          reserva={editingReserva}
+          clientes={clientes}
+          mascotas={mascotas}
+          servicios={servicios}
+          tarifasPeso={tarifasPeso}
+          serviciosExtra={serviciosExtra}
+          alimentos={alimentos}
+          onClose={() => setEditingReserva(null)}
+          onSuccess={() => {
+            setEditingReserva(null);
+            loadData();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -189,6 +235,7 @@ function NewReservaModal({
   onClose: () => void;
   onSuccess: () => void;
 }) {
+  const [step, setStep] = useState(1);
   const [clienteSearch, setClienteSearch] = useState('');
   const [formData, setFormData] = useState({
     id_cliente: '',
@@ -396,65 +443,465 @@ function NewReservaModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Nueva Reserva</h2>
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Nueva Reserva - Paso {step} de 2</h2>
         <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cliente*</label>
-            <input
-              type="text"
-              placeholder="Buscar cliente..."
-              value={clienteSearch}
-              onChange={(e) => setClienteSearch(e.target.value)}
-              className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-            <select
-              required
-              value={formData.id_cliente}
-              onChange={(e) => setFormData({ ...formData, id_cliente: e.target.value, id_mascota: '' })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Seleccionar cliente</option>
-              {clientesFiltrados.map((c) => (
-                <option key={c.id} value={c.id}>{c.nombre}</option>
-              ))}
-            </select>
-          </div>
+          {step === 1 && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cliente*</label>
+                <input
+                  type="text"
+                  placeholder="Buscar cliente..."
+                  value={clienteSearch}
+                  onChange={(e) => setClienteSearch(e.target.value)}
+                  className="w-full mb-2 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+                <select
+                  required
+                  value={formData.id_cliente}
+                  onChange={(e) => setFormData({ ...formData, id_cliente: e.target.value, id_mascota: '' })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccionar cliente</option>
+                  {clientesFiltrados.map((c) => (
+                    <option key={c.id} value={c.id}>{c.nombre}</option>
+                  ))}
+                </select>
+              </div>
 
-          {formData.id_cliente && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Mascota*</label>
-              <select
-                required
-                value={formData.id_mascota}
-                onChange={(e) => setFormData({ ...formData, id_mascota: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Seleccionar mascota</option>
-                {mascotasDelCliente.map((m) => (
-                  <option key={m.id} value={m.id}>{m.nombre} ({m.especie})</option>
-                ))}
-              </select>
-            </div>
+              {formData.id_cliente && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Mascota*</label>
+                  <select
+                    required
+                    value={formData.id_mascota}
+                    onChange={(e) => setFormData({ ...formData, id_mascota: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  >
+                    <option value="">Seleccionar mascota</option>
+                    {mascotasDelCliente.map((m) => (
+                      <option key={m.id} value={m.id}>{m.nombre} ({m.especie})</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Servicio*</label>
+                <select
+                  required
+                  value={formData.id_servicio}
+                  onChange={(e) => setFormData({ ...formData, id_servicio: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccionar servicio</option>
+                  {servicios.map((s) => (
+                    <option key={s.id} value={s.id}>
+                      {s.nombre} - ${Number(s.precio_base).toLocaleString('es-MX')}/día
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio*</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.fecha_inicio}
+                    onChange={(e) => setFormData({ ...formData, fecha_inicio: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Fin*</label>
+                  <input
+                    type="date"
+                    required
+                    value={formData.fecha_fin}
+                    min={formData.fecha_inicio}
+                    onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  />
+                </div>
+              </div>
+            </>
           )}
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Servicio*</label>
-            <select
-              required
-              value={formData.id_servicio}
-              onChange={(e) => setFormData({ ...formData, id_servicio: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Seleccionar servicio</option>
-              {servicios.map((s) => (
-                <option key={s.id} value={s.id}>
-                  {s.nombre} - ${Number(s.precio_base).toLocaleString('es-MX')}/día
-                </option>
-              ))}
-            </select>
-          </div>
+          {step === 2 && (
+            <>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                <textarea
+                  value={formData.notas}
+                  onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  rows={3}
+                  placeholder="Instrucciones especiales, cuidados particulares..."
+                />
+              </div>
 
+              {/* Checklist de pertenencias */}
+              <fieldset className="border border-gray-200 rounded-lg p-4">
+                <legend className="px-2 text-sm font-semibold text-gray-700">Pertenencias</legend>
+                <div className="grid grid-cols-2 gap-3 mt-2">
+                  {Object.keys(formData.pertenencias).map((key) => (
+                    <label key={key} className="flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={(formData.pertenencias as any)[key]}
+                        onChange={(e) =>
+                          setFormData({
+                            ...formData,
+                            pertenencias: { ...formData.pertenencias, [key]: e.target.checked },
+                          })
+                        }
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              {/* Sección de Alimento */}
+              <fieldset className="border border-gray-200 rounded-lg p-4">
+                <legend className="px-2 text-sm font-semibold text-gray-700">Alimento</legend>
+                <div className="space-y-4 mt-2">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                    <select
+                      value={formData.id_alimento}
+                      onChange={(e) => setFormData({ ...formData, id_alimento: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="">Seleccionar alimento</option>
+                      {alimentos.map((a) => (
+                        <option key={a.id} value={a.id}>{a.nombre}</option>
+                      ))}
+                      <option value="otro">Otro (especificar)</option>
+                    </select>
+                  </div>
+                  {formData.id_alimento === 'otro' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Nueva Marca de Alimento</label>
+                      <input
+                        type="text"
+                        required
+                        value={formData.nuevo_alimento}
+                        onChange={(e) => setFormData({ ...formData, nuevo_alimento: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="Escribe la marca"
+                      />
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (tazas)</label>
+                      <input
+                        type="number"
+                        step="0.25"
+                        value={formData.alimento_cantidad}
+                        onChange={(e) => setFormData({ ...formData, alimento_cantidad: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia (veces al día)</label>
+                      <input
+                        type="number"
+                        value={formData.alimento_frecuencia}
+                        onChange={(e) => setFormData({ ...formData, alimento_frecuencia: e.target.value })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Horarios</label>
+                    <input
+                      type="text"
+                      value={formData.alimento_horarios}
+                      onChange={(e) => setFormData({ ...formData, alimento_horarios: e.target.value })}
+                      placeholder="Ej. 8:00 AM, 1:00 PM, 7:00 PM"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                </div>
+              </fieldset>
+
+              {/* Servicios Extra */}
+              {serviciosExtra.length > 0 && (
+                <fieldset className="border border-gray-200 rounded-lg p-4">
+                  <legend className="px-2 text-sm font-semibold text-gray-700">Servicios Extra</legend>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    {serviciosExtra.map((extra) => (
+                      <label key={extra.id} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={!!formData.servicios_extra_seleccionados[extra.id]}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              servicios_extra_seleccionados: {
+                                ...formData.servicios_extra_seleccionados,
+                                [extra.id]: e.target.checked,
+                              },
+                            })
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        <span>{extra.nombre} - ${Number(extra.precio).toLocaleString('es-MX')}</span>
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
+
+              {/* Facturación y Resumen */}
+              <div className="space-y-4 pt-4 border-t border-gray-200">
+                <label className="flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={formData.solicita_factura}
+                    onChange={(e) => setFormData({ ...formData, solicita_factura: e.target.checked })}
+                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  Solicitar Factura (Añade 16% IVA)
+                </label>
+
+                <div className="bg-gray-50 rounded-lg p-4 space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Subtotal ({costos.dias} {costos.dias === 1 ? 'día' : 'días'}):</span>
+                    <span className="font-medium">${costos.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  {formData.solicita_factura && (
+                    <div className="flex justify-between">
+                      <span>IVA (16%):</span>
+                      <span className="font-medium">${costos.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  <div className="flex justify-between text-base font-semibold">
+                    <span>Total:</span>
+                    <span>${costos.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Anticipo</label>
+                    <input
+                      type="number"
+                      placeholder="Monto"
+                      value={formData.monto_anticipo}
+                      onChange={e => setFormData({...formData, monto_anticipo: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Método de Pago</label>
+                    <select
+                      value={formData.metodo_pago_anticipo}
+                      onChange={e => setFormData({...formData, metodo_pago_anticipo: e.target.value})}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option>Pendiente</option>
+                      <option>Efectivo</option>
+                      <option>Transferencia</option>
+                      <option>Tarjeta</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          <div className="flex justify-end gap-3 pt-4">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+            >
+              Cancelar
+            </button>
+            {step === 1 && (
+              <button
+                type="button"
+                onClick={() => setStep(2)}
+                disabled={!formData.id_cliente || !formData.id_mascota || !formData.id_servicio || !formData.fecha_inicio || !formData.fecha_fin}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                Continuar
+              </button>
+            )}
+            {step === 2 && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setStep(1)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                >
+                  Atrás
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || costos.total === 0}
+                  className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:bg-gray-400"
+                >
+                  {submitting ? 'Guardando...' : 'Confirmar Reserva'}
+                </button>
+              </>
+            )}
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function EditReservaModal({ 
+  reserva, 
+  clientes, 
+  mascotas, 
+  servicios, 
+  tarifasPeso, 
+  serviciosExtra, 
+  alimentos, 
+  onClose, 
+  onSuccess 
+}: {
+  reserva: Reserva;
+  clientes: Cliente[];
+  mascotas: Mascota[];
+  servicios: Servicio[];
+  tarifasPeso: TarifaPeso[];
+  serviciosExtra: ServicioExtra[];
+  alimentos: Alimento[];
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [formData, setFormData] = useState({
+    ...reserva,
+    fecha_inicio: new Date(reserva.fecha_inicio).toISOString().split('T')[0],
+    fecha_fin: new Date(reserva.fecha_fin).toISOString().split('T')[0],
+    servicios_extra_seleccionados: {} as Record<string, boolean>,
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [costos, setCostos] = useState({ subtotal: 0, iva: 0, total: 0, dias: 0 });
+
+  // Lógica para cargar servicios extra existentes
+  useEffect(() => {
+    const fetchServicios = async () => {
+      const { data } = await supabase
+        .from('reserva_servicios_extra')
+        .select('id_servicio_extra')
+        .eq('id_reserva', reserva.id);
+      
+      const seleccionados: Record<string, boolean> = {};
+      if (data) {
+        data.forEach(item => {
+          seleccionados[item.id_servicio_extra] = true;
+        });
+      }
+      setFormData(prev => ({ ...prev, servicios_extra_seleccionados: seleccionados }));
+    };
+    fetchServicios();
+  }, [reserva.id]);
+
+  const mascotaSeleccionada = mascotas.find(m => m.id === formData.id_mascota);
+  const servicioSeleccionado = servicios.find(s => s.id === formData.id_servicio);
+
+  // Recalcular costos
+  useEffect(() => {
+    const nuevosCostos = calcularCostosReserva(
+      formData,
+      servicioSeleccionado,
+      mascotaSeleccionada,
+      tarifasPeso,
+      serviciosExtra
+    );
+    setCostos(nuevosCostos);
+  }, [
+    formData.fecha_inicio,
+    formData.fecha_fin,
+    formData.id_servicio,
+    formData.solicita_factura,
+    formData.servicios_extra_seleccionados,
+    servicioSeleccionado,
+    mascotaSeleccionada,
+    tarifasPeso,
+    serviciosExtra,
+  ]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const { subtotal, iva, total, dias } = calcularCostosReserva(
+        formData,
+        servicioSeleccionado,
+        mascotaSeleccionada,
+        tarifasPeso,
+        serviciosExtra
+      );
+
+      const reservaUpdate = {
+        ...formData,
+        costo_total: total,
+        costo_iva: iva,
+      };
+      
+      delete (reservaUpdate as any).servicios_extra_seleccionados;
+
+      const { error: updateError } = await supabase
+        .from('reservas')
+        .update(reservaUpdate)
+        .eq('id', reserva.id);
+
+      if (updateError) throw updateError;
+
+      // Actualizar servicios extra
+      await supabase.from('reserva_servicios_extra').delete().eq('id_reserva', reserva.id);
+      
+      const serviciosParaGuardar: any[] = [];
+      for (const servicioId in formData.servicios_extra_seleccionados) {
+        if (formData.servicios_extra_seleccionados[servicioId]) {
+          const extra = serviciosExtra.find(s => s.id === servicioId);
+          if (extra) {
+            const esPorDia = /\(por día\)/i.test(extra.nombre);
+            const cantidad = esPorDia ? dias : 1;
+            serviciosParaGuardar.push({
+              id_reserva: reserva.id,
+              id_servicio_extra: extra.id,
+              cantidad,
+              precio_cobrado: Number(extra.precio),
+            });
+          }
+        }
+      }
+
+      if (serviciosParaGuardar.length > 0) {
+        const { error: rseError } = await supabase.from('reserva_servicios_extra').insert(serviciosParaGuardar);
+        if (rseError) throw rseError;
+      }
+
+      alert('Reserva actualizada con éxito.');
+      onSuccess();
+    } catch (error: any) {
+      alert(`Error al actualizar la reserva: ${error.message}`);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+      <div className="bg-white rounded-lg p-6 w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <h2 className="text-2xl font-bold text-gray-900 mb-4">Editar Reserva</h2>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Campos del formulario - similares a NewReservaModal pero con valores de formData */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Inicio*</label>
@@ -472,213 +919,42 @@ function NewReservaModal({
                 type="date"
                 required
                 value={formData.fecha_fin}
-                onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
                 min={formData.fecha_inicio}
+                onChange={(e) => setFormData({ ...formData, fecha_fin: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-            <textarea
-              value={formData.notas}
-              onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
+            <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
+            <select
+              value={formData.estado}
+              onChange={e => setFormData({...formData, estado: e.target.value})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              rows={3}
-              placeholder="Instrucciones especiales, cuidados particulares..."
-            />
+            >
+              <option value="Confirmada">Confirmada</option>
+              <option value="Completada">Completada</option>
+              <option value="Cancelada">Cancelada</option>
+            </select>
           </div>
 
-          {/* Checklist de pertenencias */}
-          <fieldset className="border border-gray-200 rounded-lg p-4">
-            <legend className="px-2 text-sm font-semibold text-gray-700">Pertenencias</legend>
-            <div className="grid grid-cols-2 gap-3 mt-2">
-              {Object.keys(formData.pertenencias).map((key) => (
-                <label key={key} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={(formData.pertenencias as any)[key]}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      pertenencias: { ...formData.pertenencias, [key]: e.target.checked },
-                    })}
-                  />
-                  {key}
-                </label>
-              ))}
-            </div>
-          </fieldset>
+          {/* ... otros campos ... */}
 
-          {/* Sección de Alimento */}
-          <div className="border border-gray-200 rounded-lg p-4">
-            <p className="text-sm font-semibold text-gray-700 mb-2">Alimento</p>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
-                <select
-                  value={formData.id_alimento}
-                  onChange={(e) => setFormData({ ...formData, id_alimento: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                >
-                  <option value="">Seleccionar</option>
-                  {alimentos.map((a) => (
-                    <option key={a.id} value={a.id}>{a.nombre}</option>
-                  ))}
-                  <option value="otro">Otro (especificar)</option>
-                </select>
-                {formData.id_alimento === 'otro' && (
-                  <input
-                    type="text"
-                    placeholder="Escribe la marca..."
-                    value={formData.nuevo_alimento}
-                    onChange={(e) => setFormData({ ...formData, nuevo_alimento: e.target.value })}
-                    className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                )}
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (tazas)</label>
-                <input
-                  type="text"
-                  value={formData.alimento_cantidad}
-                  onChange={(e) => setFormData({ ...formData, alimento_cantidad: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia (veces al día)</label>
-                <input
-                  type="text"
-                  value={formData.alimento_frecuencia}
-                  onChange={(e) => setFormData({ ...formData, alimento_frecuencia: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Horarios</label>
-                <input
-                  type="text"
-                  placeholder="Ej. 8:00 AM, 1:00 PM, 7:00 PM"
-                  value={formData.alimento_horarios}
-                  onChange={(e) => setFormData({ ...formData, alimento_horarios: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-            </div>
-          </div>
-
-          {/* Sección de Servicios Extra */}
-          <fieldset className="border border-gray-200 rounded-lg p-4">
-            <legend className="px-2 text-sm font-semibold text-gray-700">Servicios Extra</legend>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-              {serviciosExtra.map((s) => (
-                <label key={s.id} className="flex items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={Boolean(formData.servicios_extra_seleccionados[s.id])}
-                    onChange={(e) => setFormData({
-                      ...formData,
-                      servicios_extra_seleccionados: {
-                        ...formData.servicios_extra_seleccionados,
-                        [s.id]: e.target.checked,
-                      },
-                    })}
-                  />
-                  {s.nombre} - ${Number(s.precio).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          {/* Sección de Facturación y Pagos */}
-          <div className="border border-gray-200 rounded-lg p-4 space-y-4">
-            {/* Facturación */}
-            <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Facturación</p>
-              <div className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="solicita_factura"
-                  checked={formData.solicita_factura}
-                  onChange={(e) => setFormData({ ...formData, solicita_factura: e.target.checked })}
-                  className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                />
-                <label htmlFor="solicita_factura" className="text-sm text-gray-700">
-                  Solicitar Factura (Añade 16% IVA)
-                </label>
-              </div>
-            </div>
-            
-            {/* Gestión de Pago */}
-            <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Gestión de Pago</p>
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Monto Anticipo</label>
-                  <div className="relative">
-                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-500">$</span>
-                    <input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={formData.monto_anticipo}
-                      onChange={(e) => setFormData({ ...formData, monto_anticipo: e.target.value })}
-                      className="w-full pl-8 pr-4 py-2 border border-gray-300 rounded-lg"
-                      placeholder="0.00"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Método de Pago (Anticipo)</label>
-                  <select
-                    value={formData.metodo_pago_anticipo}
-                    onChange={(e) => setFormData({ ...formData, metodo_pago_anticipo: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  >
-                    <option value="Pendiente">Pendiente</option>
-                    <option value="Efectivo">Efectivo</option>
-                    <option value="Transferencia">Transferencia</option>
-                    <option value="Tarjeta">Tarjeta</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-            
-            {/* Resumen de Costos */}
-            <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Resumen de Costos</p>
-              <div className="grid grid-cols-3 gap-2 text-sm">
-                <div>
-                  <p className="text-gray-500">Subtotal</p>
-                  <p className="font-semibold text-gray-900">${costos.subtotal.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">IVA</p>
-                  <p className="font-semibold text-gray-900">${costos.iva.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-                </div>
-                <div>
-                  <p className="text-gray-500">Total</p>
-                  <p className="font-semibold text-gray-900">${costos.total.toLocaleString('es-MX', { minimumFractionDigits: 2 })}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div className="flex gap-3 pt-4">
+          <div className="flex justify-end gap-3 pt-4">
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+              className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
             >
               Cancelar
             </button>
             <button
               type="submit"
               disabled={submitting}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-gray-400"
             >
-              {submitting ? 'Guardando...' : 'Crear Reserva'}
+              {submitting ? 'Guardando...' : 'Guardar Cambios'}
             </button>
           </div>
         </form>

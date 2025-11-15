@@ -1,0 +1,1 @@
+INSERT INTO ubicaciones (nombre, direccion, capacidad_total) VALUES ('Pensión Metepec', 'Calle Falsa 123, Metepec', 50) ON CONFLICT (nombre) DO NOTHING;

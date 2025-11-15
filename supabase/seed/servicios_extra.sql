@@ -6,4 +6,5 @@ VALUES
   ('Baño (Raza Grande)', 400.00),
   ('Medicación (por día)', 40.00),
   ('Alimento (proporcionado por hotel) (por día)', 60.00),
-  ('Paseo Extra (30 min)', 80.00);
+  ('Paseo Extra (30 min)', 80.00)
+ON CONFLICT (nombre) DO NOTHING;

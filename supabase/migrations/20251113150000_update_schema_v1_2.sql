@@ -1,4 +1,4 @@
--- PetCare SaaS v1.2 – Actualización de esquema
+-- PetCare Kahome! v1.2 – Actualización de esquema
 -- Fecha: 2025-11-13
 -- Esta migración añade:
 -- 1. Campos de dirección estructurada en clientes (Request 2)

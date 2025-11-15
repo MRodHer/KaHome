@@ -7,4 +7,5 @@ VALUES
   ('Nupec'),
   ('Ganador'),
   ('Pedigree'),
-  ('Eukanuba');
+  ('Eukanuba')
+ON CONFLICT (nombre) DO NOTHING;

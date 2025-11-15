@@ -35,6 +35,7 @@ export type Mascota = {
   genero: string | null;
   edad: number | null;
   peso: number | null;
+  fecha_de_nacimiento: string | null;
   fecha_ultima_vacuna: string | null;
   historial_medico: string;
   url_foto: string | null;

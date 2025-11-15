@@ -1,696 +1,419 @@
-import { useEffect, useState } from 'react';
-import { supabase, type Cliente, type Mascota, type Ubicacion } from '../lib/supabase';
-import { Plus, Search, Edit2, Eye } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { supabase } from '../lib/supabase';
+import { ChevronDownIcon, ChevronUpIcon, PencilIcon, TrashIcon, PlusIcon, EyeIcon } from '@heroicons/react/24/outline';
+import UploadPhoto from './UploadPhoto';
+import ClienteModal from './modals/ClienteModal';
+import MascotaModal from './modals/MascotaModal';
+import ViewMascotaModal from './modals/ViewMascotaModal';
+import { useNotification } from '../context/NotificationContext';
 
-export function ClientesMascotas() {
+// Interfaces
+interface Cliente {
+  id: string;
+  nombre: string;
+  email: string;
+  telefono: string;
+  fecha_registro: string;
+  id_ubicacion: string;
+  consentimiento_datos: boolean;
+  calle_numero?: string;
+  colonia?: string;
+  codigo_postal?: string;
+  municipio?: string;
+  estado?: string;
+  mascotas: Mascota[];
+  ubicaciones: {
+    nombre: string;
+  };
+}
+
+interface Mascota {
+  id: string;
+  nombre: string;
+  especie: string;
+  raza: string;
+  genero: string;
+  edad: number;
+  peso: number;
+  fecha_ultima_vacuna: string;
+  historial_medico: string;
+  url_foto: string;
+  fecha_de_nacimiento: string;
+}
+
+interface Ubicacion {
+  id: string;
+  nombre: string;
+}
+
+// Constantes
+const ITEMS_PER_PAGE = 10;
+
+// Componente Principal
+const ClientesMascotas: React.FC = () => {
   const [clientes, setClientes] = useState<Cliente[]>([]);
-  const [mascotas, setMascotas] = useState<Mascota[]>([]);
-  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
-  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
-  const [showNewClienteForm, setShowNewClienteForm] = useState(false);
-  const [showNewMascotaForm, setShowNewMascotaForm] = useState(false);
-  const [mascotaSeleccionada, setMascotaSeleccionada] = useState<Mascota | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [sortColumn, setSortColumn] = useState<keyof Cliente | 'mascotas_count'>('nombre');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
+  const [expandedClienteId, setExpandedClienteId] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadData();
-  }, []);
+  const [isClienteModalOpen, setClienteModalOpen] = useState(false);
+  const [isMascotaModalOpen, setMascotaModalOpen] = useState(false);
+  const [isViewMascotaModalOpen, setViewMascotaModalOpen] = useState(false);
+  
+  const [selectedCliente, setSelectedCliente] = useState<Cliente | null>(null);
+  const [selectedMascota, setSelectedMascota] = useState<Mascota | null>(null);
+  const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]);
+  const { addNotification } = useNotification();
 
-  async function loadData() {
+  async function fetchUbicaciones() {
+    const { data, error } = await supabase.from('ubicaciones').select('id, nombre');
+    if (error) {
+      console.error('Error fetching ubicaciones:', error);
+    } else {
+      setUbicaciones(data || []);
+    }
+  }
+
+  async function fetchData() {
+    setLoading(true);
+    setError(null);
+
     try {
-      const [clientesRes, mascotasRes, ubicacionesRes] = await Promise.all([
-        supabase.from('clientes').select('*').order('created_at', { ascending: false }),
-        supabase.from('mascotas').select('*').order('created_at', { ascending: false }),
-        supabase.from('ubicaciones').select('*').order('created_at', { ascending: false }),
-      ]);
+      const { data: clientesData, error: clientesError } = await supabase
+        .from('clientes')
+        .select(`
+          id, nombre, email, telefono, fecha_registro, id_ubicacion, consentimiento_datos, calle_numero, colonia, codigo_postal, municipio, estado,
+          ubicaciones (nombre)
+        `);
 
-      if (clientesRes.data) setClientes(clientesRes.data);
-      if (mascotasRes.data) setMascotas(mascotasRes.data);
-      if (ubicacionesRes.data) setUbicaciones(ubicacionesRes.data);
-    } catch (error) {
-      console.error('Error loading data:', error);
+      if (clientesError) throw clientesError;
+
+      const { data: mascotasData, error: mascotasError } = await supabase
+        .from('mascotas')
+        .select('*');
+
+      if (mascotasError) throw mascotasError;
+
+      const clientesConMascotas = clientesData.map(cliente => ({
+        ...cliente,
+        mascotas: mascotasData.filter(mascota => mascota.id_cliente === cliente.id),
+      }));
+
+      setClientes(clientesConMascotas);
+    } catch (err: any) {
+      setError(err.message);
     } finally {
       setLoading(false);
     }
   }
 
-  const filteredMascotas = mascotas.filter(m =>
-    m.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.codigo_unico.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    m.especie.toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-gray-900">Clientes y Mascotas</h1>
-        <div className="flex gap-3">
-          <button
-            onClick={() => setShowNewClienteForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Nuevo Cliente
-          </button>
-          <button
-            onClick={() => setShowNewMascotaForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
-          >
-            <Plus className="w-4 h-4" />
-            Nueva Mascota
-          </button>
-        </div>
-      </div>
-
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-        <div className="flex items-center gap-4 mb-6">
-          <div className="flex-1 relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-            <input
-              type="text"
-              placeholder="Buscar por nombre, código o especie..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
-          </div>
-        </div>
-
-        <div className="mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Mascotas Registradas</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Foto</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Código Único</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Nombre</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Especie</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Raza</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Edad</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Última Vacuna</th>
-                  <th className="px-4 py-3 text-left text-sm font-semibold text-gray-700">Acciones</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredMascotas.map((mascota) => {
-                  const cliente = clientes.find(c => c.id === mascota.id_cliente);
-                  const diasDesdeVacuna = mascota.fecha_ultima_vacuna
-                    ? Math.floor((new Date().getTime() - new Date(mascota.fecha_ultima_vacuna).getTime()) / (1000 * 60 * 60 * 24))
-                    : null;
-                  const vacunaVencida = diasDesdeVacuna && diasDesdeVacuna > 330;
-
-                  return (
-                    <tr key={mascota.id} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="px-4 py-3">
-                        {mascota.url_foto ? (
-                          <img
-                            src={mascota.url_foto}
-                            alt={mascota.nombre}
-                            className="w-12 h-12 rounded-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-12 h-12 rounded-full bg-gray-200 flex items-center justify-center">
-                            <span className="text-gray-500 text-lg font-semibold">
-                              {mascota.nombre.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <span className="font-mono text-sm text-gray-900">{mascota.codigo_unico}</span>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div>
-                          <p className="font-semibold text-gray-900">{mascota.nombre}</p>
-                          <p className="text-sm text-gray-500">{cliente?.nombre || 'Sin cliente'}</p>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-gray-700">{mascota.especie}</td>
-                      <td className="px-4 py-3 text-gray-700">{mascota.raza || '-'}</td>
-                      <td className="px-4 py-3 text-gray-700">{mascota.edad ? `${mascota.edad} años` : '-'}</td>
-                      <td className="px-4 py-3">
-                        {mascota.fecha_ultima_vacuna ? (
-                          <div>
-                            <p className={vacunaVencida ? 'text-red-600 font-semibold' : 'text-gray-700'}>
-                              {new Date(mascota.fecha_ultima_vacuna).toLocaleDateString('es-MX')}
-                            </p>
-                            {vacunaVencida && (
-                              <span className="text-xs text-red-600">¡Vencida!</span>
-                            )}
-                          </div>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <button className="p-1 text-blue-600 hover:bg-blue-50 rounded" onClick={() => setMascotaSeleccionada(mascota)}>
-                            <Eye className="w-4 h-4" />
-                          </button>
-                          <button className="p-1 text-gray-600 hover:bg-gray-50 rounded">
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-
-        <div>
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">Clientes Registrados</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {clientes.map((cliente) => {
-              const mascotasCliente = mascotas.filter(m => m.id_cliente === cliente.id);
-              return (
-                <div key={cliente.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                  <h3 className="font-semibold text-gray-900">{cliente.nombre}</h3>
-                  <p className="text-sm text-gray-600 mt-1">{cliente.email}</p>
-                  <p className="text-sm text-gray-600">{cliente.telefono}</p>
-                  <div className="mt-3 pt-3 border-t border-gray-100">
-                    <p className="text-sm text-gray-500">
-                      {mascotasCliente.length} mascota{mascotasCliente.length !== 1 ? 's' : ''}
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Registrado: {new Date(cliente.fecha_registro).toLocaleDateString('es-MX')}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      </div>
-
-      {showNewClienteForm && (
-        <NewClienteModal ubicaciones={ubicaciones} onClose={() => setShowNewClienteForm(false)} onSuccess={loadData} />
-      )}
-      {showNewMascotaForm && (
-        <NewMascotaModal clientes={clientes} onClose={() => setShowNewMascotaForm(false)} onSuccess={loadData} />
-      )}\n      {mascotaSeleccionada && <ViewMascotaModal mascota={mascotaSeleccionada} onClose={() => setMascotaSeleccionada(null)} />}
-    </div>
-  );
-}
-
-function ViewMascotaModal({ mascota, onClose }: { mascota: Mascota; onClose: () => void; }) {
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">{mascota.nombre}</h2>
-        <p><strong>Especie:</strong> {mascota.especie}</p>
-        <p><strong>Raza:</strong> {mascota.raza}</p>
-        <p><strong>Edad:</strong> {mascota.edad} años</p>
-        <p><strong>Peso:</strong> {mascota.peso} kg</p>
-        <p><strong>Última vacuna:</strong> {mascota.fecha_ultima_vacuna ? new Date(mascota.fecha_ultima_vacuna).toLocaleDateString('es-MX') : 'N/A'}</p>
-        <div className="mt-4">
-          <button
-            type="button"
-            onClick={onClose}
-            className="w-full px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-          >
-            Cerrar
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function NewClienteModal({ ubicaciones, onClose, onSuccess }: { ubicaciones: Ubicacion[]; onClose: () => void; onSuccess: () => void }) {
-  const [formData, setFormData] = useState({
-    nombre: '',
-    email: '',
-    telefono: '',
-    id_ubicacion: '',
-    consentimiento_datos: false,
-    calle_numero: '', // <-- Nuevo
-    colonia: '',      // <-- Nuevo
-    codigo_postal: '', // <-- Nuevo
-    municipio: '',    // <-- Nuevo
-    estado: '',       // <-- Nuevo
-  });
-  const [submitting, setSubmitting] = useState(false);
-
-  // Si solo hay una ubicación disponible, seleccionarla por defecto
   useEffect(() => {
-    if (ubicaciones.length === 1 && !formData.id_ubicacion) {
-      setFormData((prev) => ({ ...prev, id_ubicacion: ubicaciones[0].id }));
+    fetchData();
+    fetchUbicaciones();
+  }, []);
+
+  const handleSort = (column: keyof Cliente | 'mascotas_count') => {
+    const direction = sortColumn === column && sortDirection === 'asc' ? 'desc' : 'asc';
+    setSortColumn(column);
+    setSortDirection(direction);
+  };
+
+  const sortedClientes = useMemo(() => {
+    return [...clientes].sort((a, b) => {
+      const aValue = sortColumn === 'mascotas_count' ? a.mascotas.length : a[sortColumn];
+      const bValue = sortColumn === 'mascotas_count' ? b.mascotas.length : b[sortColumn];
+
+      if (aValue == null || bValue == null) return 0;
+
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [clientes, sortColumn, sortDirection]);
+
+  const filteredClientes = useMemo(() => {
+    return sortedClientes.filter(cliente =>
+      cliente.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      cliente.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (cliente.telefono && cliente.telefono.includes(searchTerm))
+    );
+  }, [sortedClientes, searchTerm]);
+
+  const paginatedClientes = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredClientes.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredClientes, currentPage]);
+
+  const totalPages = Math.ceil(filteredClientes.length / ITEMS_PER_PAGE);
+
+  const openClienteModal = () => {
+    setSelectedCliente(null);
+    setClienteModalOpen(true);
+  };
+
+  const closeClienteModal = () => {
+    setClienteModalOpen(false);
+    setSelectedCliente(null);
+  };
+
+  const openMascotaModal = (cliente?: Cliente) => {
+    if (cliente) {
+      setSelectedCliente(cliente);
     }
-  }, [ubicaciones, formData.id_ubicacion]);
+    setSelectedMascota(null);
+    setMascotaModalOpen(true);
+  };
 
-  // --- INICIO DE MODIFICACIÓN: Función para Código Postal ---
-  const handlePostalCodeChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const cp = e.target.value;
-    setFormData({ ...formData, codigo_postal: cp });
+  const closeMascotaModal = () => {
+    setMascotaModalOpen(false);
+    setSelectedMascota(null);
+    setSelectedCliente(null); 
+  };
 
-    if (cp.length === 5) {
+  const handleSaveCliente = async (clienteData: Omit<Cliente, 'id' | 'fecha_registro' | 'mascotas_count' | 'mascotas'>) => {
+    try {
+      let response;
+      if (selectedCliente) {
+        response = await supabase.from('clientes').update(clienteData).eq('id', selectedCliente.id);
+      } else {
+        response = await supabase.from('clientes').insert([clienteData]);
+      }
+      if (response.error) throw response.error;
+      fetchData();
+      closeClienteModal();
+      addNotification('Cliente guardado con éxito', 'success');
+    } catch (error: any) {
+      addNotification('Error al guardar el cliente: ' + error.message, 'error');
+    }
+  };
+
+  const handleSaveMascota = async (mascotaData: any) => {
+    try {
+      let response;
+      if (selectedMascota) {
+        response = await supabase.from('mascotas').update(mascotaData).eq('id', selectedMascota.id);
+      } else {
+        response = await supabase.from('mascotas').insert([mascotaData]);
+      }
+      if (response.error) throw response.error;
+      fetchData();
+      closeMascotaModal();
+      addNotification('Mascota guardada con éxito', 'success');
+    } catch (error: any) {
+      addNotification('Error al guardar la mascota: ' + error.message, 'error');
+    }
+  };
+
+  const toggleClienteExpansion = (clienteId: string) => {
+    setExpandedClienteId(expandedClienteId === clienteId ? null : clienteId);
+  };
+
+  const handleEditCliente = (cliente: Cliente) => {
+    setSelectedCliente(cliente);
+    setClienteModalOpen(true);
+  };
+
+  const handleDeleteCliente = async (clienteId: string) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar este cliente y todas sus mascotas?')) {
       try {
-        setSubmitting(true);
-        const response = await fetch(`https://api.sepomex.com/v2/info_cp/${cp}`);
-        const data = await response.json();
-
-        if (data && data.cp) {
-          setFormData(prev => ({
-            ...prev,
-            colonia: data.colonias.join(', '),
-            municipio: data.municipio,
-            estado: data.estado,
-          }));
-        } else {
-          throw new Error('Código Postal no encontrado');
-        }
-      } catch (error) {
-        console.error('Error al buscar CP:', error);
-        setFormData(prev => ({ ...prev, colonia: '', municipio: '', estado: '' }));
-      } finally {
-        setSubmitting(false);
+        const { error: mascotasError } = await supabase.from('mascotas').delete().eq('id_cliente', clienteId);
+        if (mascotasError) throw mascotasError;
+        const { error: clienteError } = await supabase.from('clientes').delete().eq('id', clienteId);
+        if (clienteError) throw clienteError;
+        fetchData();
+        addNotification('Cliente eliminado con éxito', 'success');
+      } catch (error: any) {
+        addNotification('Error al eliminar el cliente: ' + error.message, 'error');
       }
     }
   };
-  // --- FIN DE MODIFICACIÓN ---
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
+  const handleViewMascota = (mascota: Mascota) => {
+    setSelectedMascota(mascota);
+    setViewMascotaModalOpen(true);
+  };
 
-    try {
-      // --- INICIO DE MODIFICACIÓN: Datos de Submit ---
-      const { error } = await supabase.from('clientes').insert([
-        {
-          nombre: formData.nombre,
-          email: formData.email,
-          telefono: formData.telefono,
-          id_ubicacion: formData.id_ubicacion || (ubicaciones.length === 1 ? ubicaciones[0].id : null), // Asegura la ubicación única
-          consentimiento_datos: formData.consentimiento_datos,
-          fecha_registro: new Date().toISOString().split('T')[0],
-          calle_numero: formData.calle_numero,
-          colonia: formData.colonia,
-          codigo_postal: formData.codigo_postal,
-          municipio: formData.municipio,
-          estado: formData.estado,
-        },
-      ]);
-      // --- FIN DE MODIFICACIÓN ---
-
-      if (error) throw error;
-
-      onSuccess();
-      onClose();
-    } catch (error) {
-      console.error('Error creating cliente:', error);
-      alert('Error al crear cliente');
-    } finally {
-      setSubmitting(false);
+  const handleDeleteMascota = async (mascotaId: string) => {
+    if (window.confirm('¿Estás seguro de que quieres eliminar esta mascota?')) {
+      try {
+        const { error } = await supabase.from('mascotas').delete().eq('id', mascotaId);
+        if (error) throw error;
+        fetchData();
+        addNotification('Mascota eliminada con éxito', 'success');
+      } catch (error: any) {
+        addNotification('Error al eliminar la mascota: ' + error.message, 'error');
+      }
     }
-  }
+  };
+
+  if (loading) return <div className="p-4">Cargando datos...</div>;
+  if (error) return <div className="p-4 text-red-500">Error: {error}</div>;
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Nuevo Cliente</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {/* --- INICIO DE MODIFICACIÓN: Lógica de Ubicaciones --- */}
-          {ubicaciones.length > 1 && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación*</label>
-              <select
-                required
-                value={formData.id_ubicacion}
-                onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Seleccionar ubicación</option>
-                {ubicaciones.map((u) => (
-                  <option key={u.id} value={u.id}>{u.nombre}</option>
+    <div className="p-6 bg-gray-50 min-h-screen">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold text-gray-800">Gestión de Clientes y Mascotas</h1>
+          <div className="flex gap-2">
+            <button
+              onClick={() => openClienteModal()}
+              className="bg-blue-600 text-white px-4 py-2 rounded-lg shadow hover:bg-blue-700 flex items-center gap-2"
+            >
+              <PlusIcon className="h-5 w-5" />
+              Nuevo Cliente
+            </button>
+            <button
+              onClick={() => openMascotaModal()}
+              className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 flex items-center gap-2"
+            >
+              <PlusIcon className="h-5 w-5" />
+              Nueva Mascota
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Buscar por nombre, email o teléfono..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full px-4 py-2 border border-gray-300 rounded-lg shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+
+        <div className="bg-white shadow-md rounded-lg overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-12"></th>
+                  <th onClick={() => handleSort('nombre')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">
+                    Nombre {sortColumn === 'nombre' && (sortDirection === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th onClick={() => handleSort('email')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">
+                    Email {sortColumn === 'email' && (sortDirection === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th onClick={() => handleSort('telefono')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">
+                    Teléfono {sortColumn === 'telefono' && (sortDirection === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th onClick={() => handleSort('mascotas_count')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">
+                    Mascotas {sortColumn === 'mascotas_count' && (sortDirection === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th onClick={() => handleSort('fecha_registro')} className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer">
+                    Registro {sortColumn === 'fecha_registro' && (sortDirection === 'asc' ? '▲' : '▼')}
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Acciones</th>
+                </tr>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {paginatedClientes.map(cliente => (
+                  <React.Fragment key={cliente.id}>
+                    <tr className={`${expandedClienteId === cliente.id ? 'bg-blue-50' : ''}`}>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                        <button onClick={() => toggleClienteExpansion(cliente.id)} className="text-blue-600 hover:text-blue-800">
+                          {expandedClienteId === cliente.id ? <ChevronUpIcon className="h-5 w-5" /> : <ChevronDownIcon className="h-5 w-5" />}
+                        </button>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{cliente.nombre}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cliente.email}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{cliente.telefono}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center">{cliente.mascotas.length}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{new Date(cliente.fecha_registro).toLocaleDateString()}</td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => handleEditCliente(cliente)} className="text-indigo-600 hover:text-indigo-900"><PencilIcon className="h-5 w-5" /></button>
+                          <button onClick={() => handleDeleteCliente(cliente.id)} className="text-red-600 hover:text-red-900"><TrashIcon className="h-5 w-5" /></button>
+                        </div>
+                      </td>
+                    </tr>
+                    {expandedClienteId === cliente.id && (
+                      <tr>
+                        <td colSpan={7} className="p-4 bg-gray-50">
+                          <div className="pl-12">
+                            <h4 className="font-semibold text-gray-700 mb-2">Mascotas de {cliente.nombre}:</h4>
+                            {cliente.mascotas.length > 0 ? (
+                              <ul className="divide-y divide-gray-200">
+                                {cliente.mascotas.map(mascota => (
+                                  <li key={mascota.id} className="py-2 flex justify-between items-center">
+                                    <div className="flex items-center gap-3">
+                                      <img src={mascota.url_foto || '/placeholder-mascota.png'} alt={mascota.nombre} className="h-10 w-10 rounded-full object-cover" />
+                                      <div>
+                                        <p className="font-medium">{mascota.nombre} <span className="text-xs text-gray-500">({mascota.especie} - {mascota.raza})</span></p>
+                                        <p className="text-sm text-gray-600">{mascota.edad} años, {mascota.peso} kg</p>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                      <button onClick={() => handleViewMascota(mascota)} className="text-blue-600 hover:text-blue-800"><EyeIcon className="h-5 w-5" /></button>
+                                      <button onClick={() => handleDeleteMascota(mascota.id)} className="text-red-600 hover:text-red-800"><TrashIcon className="h-5 w-5" /></button>
+                                    </div>
+                                  </li>
+                                ))}
+                              </ul>
+                            ) : (
+                              <p className="text-sm text-gray-500">Este cliente no tiene mascotas registradas.</p>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </React.Fragment>
                 ))}
-              </select>
+              </tbody>
+            </table>
+          </div>
+          <div className="px-6 py-4 flex items-center justify-between border-t border-gray-200">
+            <div className="text-sm text-gray-700">
+              Página {currentPage} de {totalPages}
             </div>
-          )}
-
-          {ubicaciones.length === 0 && (
-            <div className="p-3 bg-red-50 border-l-4 border-red-500">
-              <p className="text-sm text-red-700">
-                <strong>Error:</strong> No hay ubicaciones configuradas. Ejecuta el script SQL de ubicaciones.
-              </p>
-            </div>
-          )}
-          {/* Si hay 1 ubicación, el campo se oculta y se auto-selecciona */}
-          {/* --- FIN DE MODIFICACIÓN --- */}
-
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre Completo*</label>
-            <input
-              type="text"
-              required
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Email*</label>
-            <input
-              type="email"
-              required
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
-            <input
-              type="tel"
-              value={formData.telefono}
-              onChange={(e) => setFormData({ ...formData, telefono: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-
-          {/* --- INICIO DE MODIFICACIÓN: Campos de Dirección --- */}
-          <div className="border border-gray-200 rounded-lg p-4">
-            <p className="text-sm font-semibold text-gray-700 mb-2">Dirección</p>
-            <div className="space-y-3">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Calle y Número</label>
-                <input
-                  type="text"
-                  value={formData.calle_numero}
-                  onChange={(e) => setFormData({ ...formData, calle_numero: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Código Postal</label>
-                  <input
-                    type="text"
-                    value={formData.codigo_postal}
-                    onChange={handlePostalCodeChange}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                    maxLength={5}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Colonia</label>
-                  <input
-                    type="text"
-                    value={formData.colonia}
-                    onChange={(e) => setFormData({ ...formData, colonia: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Municipio</label>
-                  <input
-                    type="text"
-                    value={formData.municipio}
-                    onChange={(e) => setFormData({ ...formData, municipio: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
-                  <input
-                    type="text"
-                    value={formData.estado}
-                    onChange={(e) => setFormData({ ...formData, estado: e.target.value })}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                  />
-                </div>
-              </div>
+            <div className="flex gap-1">
+              <button
+                onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                disabled={currentPage === 1}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                Anterior
+              </button>
+              <button
+                onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                disabled={currentPage === totalPages}
+                className="px-3 py-1 border border-gray-300 rounded-md text-sm hover:bg-gray-50 disabled:opacity-50"
+              >
+                Siguiente
+              </button>
             </div>
           </div>
-          {/* --- FIN DE MODIFICACIÓN --- */}
-
-          <div className="flex items-start">
-            <input
-              type="checkbox"
-              required
-              checked={formData.consentimiento_datos}
-              onChange={(e) => setFormData({ ...formData, consentimiento_datos: e.target.checked })}
-              className="mt-1 mr-2"
-            />
-            <label className="text-sm text-gray-700">
-              Acepto el tratamiento de mis datos personales conforme a la LFPDPPP*
-            </label>
-          </div>
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submitting || ubicaciones.length === 0}
-              className="flex-1 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              {submitting ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
-        </form>
+        </div>
       </div>
+
+      <ClienteModal
+        isOpen={isClienteModalOpen}
+        onClose={closeClienteModal}
+        onSave={handleSaveCliente}
+        cliente={selectedCliente}
+        ubicaciones={ubicaciones}
+      />
+
+      <MascotaModal
+        isOpen={isMascotaModalOpen}
+        onClose={closeMascotaModal}
+        onSave={handleSaveMascota}
+        mascota={selectedMascota}
+        clientes={clientes}
+        initialClienteId={selectedCliente?.id}
+      />
+
+      <ViewMascotaModal
+        isOpen={isViewMascotaModalOpen}
+        onClose={() => setViewMascotaModalOpen(false)}
+        mascota={selectedMascota}
+      />
     </div>
   );
-}
+};
 
-function NewMascotaModal({ clientes, onClose, onSuccess }: { clientes: Cliente[]; onClose: () => void; onSuccess: () => void }) {
-  const [formData, setFormData] = useState({
-    id_cliente: '',
-    nombre: '',
-    especie: 'Perro',
-    raza: 'Mestizo',
-    raza_otra: '',
-    genero: 'Macho',
-    edad: '',
-    peso: '',
-    fecha_ultima_vacuna: '',
-    historial_medico: '',
-    url_foto: '', // Nuevo
-  });
-  const [submitting, setSubmitting] = useState(false);
-  const [clientSearch, setClientSearch] = useState('');
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSubmitting(true);
-
-    try {
-      const razaParaGuardar = formData.raza === 'Otro' ? formData.raza_otra : formData.raza;
-
-      const { error } = await supabase.from('mascotas').insert([
-        {
-          id_cliente: formData.id_cliente,
-          nombre: formData.nombre,
-          especie: formData.especie,
-          raza: razaParaGuardar || null,
-          genero: formData.genero,
-          edad: formData.edad ? parseInt(formData.edad) : null,
-          peso: formData.peso ? parseFloat(formData.peso) : null,
-          fecha_ultima_vacuna: formData.fecha_ultima_vacuna || null,
-          historial_medico: formData.historial_medico || '',
-          url_foto: formData.url_foto || null, // Nuevo
-        },
-      ]);
- 
-      if (error) throw error;
-
-      onSuccess();
-      onClose();
-    } catch (error) {
-      console.error('Error creating mascota:', error);
-      alert('Error al crear mascota');
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
-        <h2 className="text-2xl font-bold text-gray-900 mb-4">Nueva Mascota</h2>
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Cliente*</label>
-            <div className="space-y-2">
-              <input
-                type="text"
-                placeholder="Buscar cliente..."
-                value={clientSearch}
-                onChange={(e) => setClientSearch(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-              <select
-                required
-                value={formData.id_cliente}
-                onChange={(e) => setFormData({ ...formData, id_cliente: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">Seleccionar cliente</option>
-                {clientes
-                  .filter((c) => c.nombre.toLowerCase().includes(clientSearch.toLowerCase()))
-                  .map((c) => (
-                    <option key={c.id} value={c.id}>{c.nombre}</option>
-                  ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Nombre*</label>
-            <input
-              type="text"
-              required
-              value={formData.nombre}
-              onChange={(e) => setFormData({ ...formData, nombre: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Especie*</label>
-              <select
-                required
-                value={formData.especie}
-                onChange={(e) => setFormData({ ...formData, especie: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Perro">Perro</option>
-                <option value="Gato">Gato</option>
-                <option value="Otro">Otro</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Género*</label>
-              <select
-                required
-                value={formData.genero}
-                onChange={(e) => setFormData({ ...formData, genero: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Macho">Macho</option>
-                <option value="Hembra">Hembra</option>
-              </select>
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Raza</label>
-              <select
-                value={formData.raza}
-                onChange={(e) => setFormData({ ...formData, raza: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="Mestizo">Mestizo</option>
-                <option value="Chihuahua">Chihuahua</option>
-                <option value="Schnauzer">Schnauzer</option>
-                <option value="Labrador Retriever">Labrador Retriever</option>
-                <option value="Golden Retriever">Golden Retriever</option>
-                <option value="Pug">Pug</option>
-                <option value="Poodle (Caniche)">Poodle (Caniche)</option>
-                <option value="Bulldog Francés">Bulldog Francés</option>
-                <option value="Pastor Alemán">Pastor Alemán</option>
-                <option value="Otro">Otro</option>
-              </select>
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Edad (años)</label>
-              <input
-                type="number"
-                min="0"
-                value={formData.edad}
-                onChange={(e) => setFormData({ ...formData, edad: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-          </div>
-          {formData.raza === 'Otro' && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Especificar otra raza*</label>
-              <input
-                type="text"
-                required
-                value={formData.raza_otra}
-                onChange={(e) => setFormData({ ...formData, raza_otra: e.target.value })}
-                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-              />
-            </div>
-          )}
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Peso (kg)*</label>
-            <input
-              type="number"
-              step="0.1"
-              min="0"
-              required
-              value={formData.peso}
-              onChange={(e) => setFormData({ ...formData, peso: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Fecha Última Vacuna</label>
-            <input
-              type="date"
-              value={formData.fecha_ultima_vacuna}
-              onChange={(e) => setFormData({ ...formData, fecha_ultima_vacuna: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">Historial Médico</label>
-            <textarea
-              value={formData.historial_medico}
-              onChange={(e) => setFormData({ ...formData, historial_medico: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              rows={3}
-              placeholder="Alergias, medicamentos, condiciones especiales..."
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">URL de la Foto</label>
-            <input
-              type="url"
-              value={formData.url_foto}
-              onChange={(e) => setFormData({ ...formData, url_foto: e.target.value })}
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-              placeholder="https://ejemplo.com/foto.jpg"
-            />
-          </div>
-          <div className="flex gap-3 pt-4">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-            >
-              Cancelar
-            </button>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="flex-1 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50"
-            >
-              {submitting ? 'Guardando...' : 'Guardar'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
+export default ClientesMascotas;
