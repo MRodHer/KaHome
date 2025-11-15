@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import UploadPhoto from '../UploadPhoto';
+import { UploadPhoto } from '../UploadPhoto';
 
 interface Mascota {
   id: string;

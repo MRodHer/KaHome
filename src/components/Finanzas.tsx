@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'; 
- import { supabase, type TransaccionFinanciera, type Ubicacion } from '../lib/supabase'; 
- import { DollarSign, TrendingUp, TrendingDown, Plus } from 'lucide-react'; 
- 
- export function Finanzas() { 
+import { supabaseAdmin, type TransaccionFinanciera, type Ubicacion } from '../lib/supabase'; 
+import { DollarSign, TrendingUp, TrendingDown, Plus, Edit, Trash2 } from 'lucide-react'; 
+
+export function Finanzas() { 
    const [transacciones, setTransacciones] = useState<TransaccionFinanciera[]>([]); 
    const [ubicaciones, setUbicaciones] = useState<Ubicacion[]>([]); 
    const [loading, setLoading] = useState(true); 
@@ -17,8 +17,8 @@ import { useEffect, useState } from 'react';
    async function loadData() { 
      try { 
        const [transaccionesRes, ubicacionesRes] = await Promise.all([ 
-         supabase.from('transacciones_financieras').select('*').order('fecha', { ascending: false }), 
-         supabase.from('ubicaciones').select('*'), 
+         supabaseAdmin.from('transacciones_financieras').select('*').order('fecha', { ascending: false }), 
+         supabaseAdmin.from('ubicaciones').select('*'), 
        ]); 
  
        if (transaccionesRes.error) throw transaccionesRes.error; 
@@ -218,8 +218,13 @@ import { useEffect, useState } from 'react';
  async function handleDeleteTransaccion(id: string) {
   if (window.confirm('¿Estás seguro de que quieres eliminar esta transacción?')) {
     try {
-      const { error } = await supabase.from('transacciones_financieras').delete().eq('id', id);
+      const { error } = await supabaseAdmin
+        .from('transacciones_financieras')
+        .delete()
+        .eq('id', id);
+
       if (error) throw error;
+
       setTransacciones(transacciones.filter((t) => t.id !== id));
     } catch (error) {
       console.error('Error deleting transaction:', error);

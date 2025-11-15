@@ -2,7 +2,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { supabase, type Reserva } from '../lib/supabase';
+import { supabaseAdmin, type Reserva } from '../lib/supabase';
 import { useEffect, useState } from 'react';
 
 export function CalendarioReservas() {
@@ -14,7 +14,7 @@ export function CalendarioReservas() {
   }, []);
 
   async function fetchReservas() {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('reservas')
       .select('*, mascotas(*), clientes(*), servicios(*)');
 

@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react';
-import { supabase } from './lib/supabase';
+import { useState } from 'react';
 import { Dashboard } from './components/Dashboard';
 import { ClientesMascotas } from './components/ClientesMascotas';
 import { Reservas } from './components/Reservas';
@@ -125,43 +124,12 @@ function AppContent() {
 }
 
 function App() {
-  const [session, setSession] = useState<any | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const getSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      setSession(session);
-      setLoading(false);
-    };
-
-    getSession();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
-
-  if (loading) {
-    return <div className="flex items-center justify-center h-screen">Cargando...</div>;
-  }
-
-  if (!session) {
-    return <PortalCliente />;
-  }
-
-  return <AppContent />;
-}
-
-const App: React.FC = () => {
   return (
     <NotificationProvider>
-      <Dashboard />
+      <AppContent />
       <NotificationContainer />
     </NotificationProvider>
   );
-};
+}
 
 export default App;

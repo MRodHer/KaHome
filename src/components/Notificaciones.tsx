@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabaseAdmin } from '../lib/supabase';
 import { Bell } from 'lucide-react';
 
 interface Notificacion {
@@ -19,7 +19,7 @@ export function Notificaciones() {
 
   const fetchNotificaciones = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('notificaciones')
       .select('*')
       .order('created_at', { ascending: false });
@@ -33,7 +33,7 @@ export function Notificaciones() {
   };
 
   const markAsRead = async (id: number) => {
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('notificaciones')
       .update({ leida: true })
       .eq('id', id);

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, type Mascota } from '../lib/supabase';
+import { supabaseAdmin, type Mascota } from '../lib/supabase';
 
 const RAZAS_PERRO = [
   "Mestizo",
@@ -193,7 +193,7 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
       if (fotoFile) {
         const fileExt = fotoFile.name.split('.').pop();
         const fileName = `${mascota.id}-${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage
+        const { error: uploadError } = await supabaseAdmin.storage
           .from('fotos-mascotas')
           .upload(fileName, fotoFile);
 
@@ -201,10 +201,10 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
           throw uploadError;
         }
 
-        const { data: urlData } = supabase.storage.from('fotos-mascotas').getPublicUrl(fileName);
+        const { data: urlData } = supabaseAdmin.storage.from('fotos-mascotas').getPublicUrl(fileName);
         fotoUrl = urlData.publicUrl;
       }
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('mascotas')
         .update({ ...formData, url_foto: fotoUrl })
         .eq('id', mascota.id);

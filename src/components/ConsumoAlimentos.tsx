@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase, type Mascota, type Alimento } from '../lib/supabase';
+import { supabaseAdmin, type Mascota, type Alimento } from '../lib/supabase';
 
 // Define the type for a consumption record
 interface Consumo {
@@ -43,19 +43,19 @@ export function ConsumoAlimentos() {
   }, [selectedMascota]);
 
   const fetchMascotas = async () => {
-    const { data, error } = await supabase.from('mascotas').select('id, nombre');
+    const { data, error } = await supabaseAdmin.from('mascotas').select('id, nombre');
     if (error) console.error('Error fetching mascotas:', error);
     else setMascotas(data || []);
   };
 
   const fetchAlimentos = async () => {
-    const { data, error } = await supabase.from('alimentos').select('id, marca');
+    const { data, error } = await supabaseAdmin.from('alimentos').select('id, marca');
     if (error) console.error('Error fetching alimentos:', error);
     else setAlimentos(data || []);
   };
 
   const fetchConsumoHistory = async (mascotaId: string) => {
-    const { data, error } = await supabase
+    const { data, error } = await supabaseAdmin
       .from('consumo_alimentos')
       .select(`
         id, id_mascota, id_alimento, cantidad, fecha, notas, created_at,
@@ -102,7 +102,7 @@ export function ConsumoAlimentos() {
 
       if (formData.id_alimento === 'otro') {
         // Insert the new food and get its ID
-        const { data: newAlimentoData, error: newAlimentoError } = await supabase
+        const { data: newAlimentoData, error: newAlimentoError } = await supabaseAdmin
           .from('alimentos')
           .insert({ marca: newAlimento.trim() })
           .select('id')
@@ -117,7 +117,7 @@ export function ConsumoAlimentos() {
         alimentoIdToInsert = parseInt(formData.id_alimento);
       }
 
-      const { error } = await supabase.from('consumo_alimentos').insert([
+      const { error } = await supabaseAdmin.from('consumo_alimentos').insert([
         {
           id_mascota: parseInt(formData.id_mascota),
           id_alimento: alimentoIdToInsert,
@@ -147,7 +147,7 @@ export function ConsumoAlimentos() {
 
   const handleDeleteConsumo = async (consumoId: number) => {
     if (window.confirm('¿Está seguro de que desea eliminar este registro de consumo?')) {
-      const { error } = await supabase.from('consumo_alimentos').delete().eq('id', consumoId);
+      const { error } = await supabaseAdmin.from('consumo_alimentos').delete().eq('id', consumoId);
       if (error) {
         console.error('Error deleting consumo:', error);
         alert('Error al eliminar el registro.');
@@ -331,7 +331,7 @@ function EditConsumoModal({ consumo, onClose, onSave, alimentos }: EditConsumoMo
     e.preventDefault();
     setSubmitting(true);
     try {
-      const { error } = await supabase
+      const { error } = await supabaseAdmin
         .from('consumo_alimentos')
         .update({
           id_alimento: parseInt(formData.id_alimento),

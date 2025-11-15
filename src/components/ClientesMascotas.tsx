@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabaseAdmin } from '../lib/supabase';
 import { ChevronDownIcon, ChevronUpIcon, PencilIcon, TrashIcon, PlusIcon, EyeIcon } from '@heroicons/react/24/outline';
-import UploadPhoto from './UploadPhoto';
+import { UploadPhoto } from './UploadPhoto';
 import ClienteModal from './modals/ClienteModal';
 import MascotaModal from './modals/MascotaModal';
 import ViewMascotaModal from './modals/ViewMascotaModal';
@@ -50,7 +50,7 @@ interface Ubicacion {
 const ITEMS_PER_PAGE = 10;
 
 // Componente Principal
-const ClientesMascotas: React.FC = () => {
+export const ClientesMascotas: React.FC = () => {
   const [clientes, setClientes] = useState<Cliente[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +70,7 @@ const ClientesMascotas: React.FC = () => {
   const { addNotification } = useNotification();
 
   async function fetchUbicaciones() {
-    const { data, error } = await supabase.from('ubicaciones').select('id, nombre');
+    const { data, error } = await supabaseAdmin.from('ubicaciones').select('id, nombre');
     if (error) {
       console.error('Error fetching ubicaciones:', error);
     } else {
@@ -81,9 +81,10 @@ const ClientesMascotas: React.FC = () => {
   async function fetchData() {
     setLoading(true);
     setError(null);
+    addNotification('Cargando datos...', 'info');
 
     try {
-      const { data: clientesData, error: clientesError } = await supabase
+      const { data: clientesData, error: clientesError } = await supabaseAdmin
         .from('clientes')
         .select(`
           id, nombre, email, telefono, fecha_registro, id_ubicacion, consentimiento_datos, calle_numero, colonia, codigo_postal, municipio, estado,
@@ -92,7 +93,7 @@ const ClientesMascotas: React.FC = () => {
 
       if (clientesError) throw clientesError;
 
-      const { data: mascotasData, error: mascotasError } = await supabase
+      const { data: mascotasData, error: mascotasError } = await supabaseAdmin
         .from('mascotas')
         .select('*');
 
@@ -106,6 +107,7 @@ const ClientesMascotas: React.FC = () => {
       setClientes(clientesConMascotas);
     } catch (err: any) {
       setError(err.message);
+      addNotification('Error al cargar los datos: ' + err.message, 'error');
     } finally {
       setLoading(false);
     }
@@ -178,14 +180,14 @@ const ClientesMascotas: React.FC = () => {
     try {
       let response;
       if (selectedCliente) {
-        response = await supabase.from('clientes').update(clienteData).eq('id', selectedCliente.id);
+        response = await supabaseAdmin.from('clientes').update(clienteData).eq('id', selectedCliente.id);
       } else {
-        response = await supabase.from('clientes').insert([clienteData]);
+        response = await supabaseAdmin.from('clientes').insert([clienteData]);
       }
       if (response.error) throw response.error;
       fetchData();
       closeClienteModal();
-      addNotification('Cliente guardado con éxito', 'success');
+      addNotification(`Cliente '${(clienteData as any).nombre}' guardado con éxito`, 'success');
     } catch (error: any) {
       addNotification('Error al guardar el cliente: ' + error.message, 'error');
     }
@@ -195,14 +197,14 @@ const ClientesMascotas: React.FC = () => {
     try {
       let response;
       if (selectedMascota) {
-        response = await supabase.from('mascotas').update(mascotaData).eq('id', selectedMascota.id);
+        response = await supabaseAdmin.from('mascotas').update(mascotaData).eq('id', selectedMascota.id);
       } else {
-        response = await supabase.from('mascotas').insert([mascotaData]);
+        response = await supabaseAdmin.from('mascotas').insert([mascotaData]);
       }
       if (response.error) throw response.error;
       fetchData();
       closeMascotaModal();
-      addNotification('Mascota guardada con éxito', 'success');
+      addNotification(`Mascota '${mascotaData.nombre}' guardada con éxito`, 'success');
     } catch (error: any) {
       addNotification('Error al guardar la mascota: ' + error.message, 'error');
     }
@@ -219,15 +221,21 @@ const ClientesMascotas: React.FC = () => {
 
   const handleDeleteCliente = async (clienteId: string) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar este cliente y todas sus mascotas?')) {
+      const originalClientes = [...clientes];
+      const clienteAEliminar = clientes.find(c => c.id === clienteId);
+      
+      setClientes(prev => prev.filter(c => c.id !== clienteId));
+      addNotification(`Cliente '${clienteAEliminar?.nombre}' eliminado.`, 'warning');
+
       try {
-        const { error: mascotasError } = await supabase.from('mascotas').delete().eq('id_cliente', clienteId);
+        const { error: mascotasError } = await supabaseAdmin.from('mascotas').delete().eq('id_cliente', clienteId);
         if (mascotasError) throw mascotasError;
-        const { error: clienteError } = await supabase.from('clientes').delete().eq('id', clienteId);
+        const { error: clienteError } = await supabaseAdmin.from('clientes').delete().eq('id', clienteId);
         if (clienteError) throw clienteError;
-        fetchData();
-        addNotification('Cliente eliminado con éxito', 'success');
+        addNotification('Cliente eliminado permanentemente', 'success');
       } catch (error: any) {
         addNotification('Error al eliminar el cliente: ' + error.message, 'error');
+        setClientes(originalClientes);
       }
     }
   };
@@ -239,13 +247,23 @@ const ClientesMascotas: React.FC = () => {
 
   const handleDeleteMascota = async (mascotaId: string) => {
     if (window.confirm('¿Estás seguro de que quieres eliminar esta mascota?')) {
+      const originalClientes = [...clientes];
+      const mascotaAEliminar = clientes.flatMap(c => c.mascotas).find(m => m.id === mascotaId);
+
+      const nuevosClientes = clientes.map(c => ({
+        ...c,
+        mascotas: c.mascotas.filter(m => m.id !== mascotaId)
+      }));
+      setClientes(nuevosClientes);
+      addNotification(`Mascota '${mascotaAEliminar?.nombre}' eliminada.`, 'warning');
+
       try {
-        const { error } = await supabase.from('mascotas').delete().eq('id', mascotaId);
+        const { error } = await supabaseAdmin.from('mascotas').delete().eq('id', mascotaId);
         if (error) throw error;
-        fetchData();
-        addNotification('Mascota eliminada con éxito', 'success');
+        addNotification('Mascota eliminada permanentemente', 'success');
       } catch (error: any) {
         addNotification('Error al eliminar la mascota: ' + error.message, 'error');
+        setClientes(originalClientes);
       }
     }
   };

@@ -25,7 +25,7 @@ const NotificationContainer: React.FC = () => {
         const Icon = ICONS[notification.status];
         return (
           <div
-            key={notification.id}
+            key={`${notification.id}-${Math.random()}`}
             className={`${BG_COLORS[notification.status]} text-white p-4 rounded-lg shadow-lg flex items-center gap-3 animate-fade-in-right`}
           >
             <Icon className="h-6 w-6" />

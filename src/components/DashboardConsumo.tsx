@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '../lib/supabase';
+import { supabaseAdmin } from '../lib/supabase';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 interface ConsumoData {
@@ -17,7 +17,7 @@ export function DashboardConsumo() {
 
   const fetchConsumoData = async () => {
     setLoading(true);
-    const { data: consumo, error } = await supabase
+    const { data: consumo, error } = await supabaseAdmin
       .from('consumo_alimentos')
       .select(`
         cantidad,

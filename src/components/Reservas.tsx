@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { supabase, type Reserva, type Cliente, type Mascota, type Servicio, type TarifaPeso, type ServicioExtra, type Alimento } from '../lib/supabase';
+import { supabaseAdmin, type Reserva, type Cliente, type Mascota, type Servicio, type TarifaPeso, type ServicioExtra, type Alimento } from '../lib/supabase';
 import { Calendar as CalendarIcon, Plus, Filter } from 'lucide-react';
 
 export function Reservas() {
@@ -22,19 +22,22 @@ export function Reservas() {
   async function loadData() {
     try {
       const [reservasRes, clientesRes, mascotasRes, serviciosRes, tarifasRes, extrasRes, alimentosRes] = await Promise.all([
-        supabase.from('reservas').select('*').order('fecha_inicio', { ascending: false }),
-        supabase.from('clientes').select('*'),
-        supabase.from('mascotas').select('*'),
-        supabase.from('servicios').select('*'),
-        supabase.from('tarifas_peso').select('*').order('peso_min', { ascending: true }),
-        supabase.from('servicios_extra').select('*').order('created_at', { ascending: false }),
-        supabase.from('alimentos').select('*').order('nombre', { ascending: true }),
+        supabaseAdmin.from('reservas').select('*').order('fecha_inicio', { ascending: false }),
+        supabaseAdmin.from('clientes').select('*'),
+        supabaseAdmin.from('mascotas').select('*'),
+        supabaseAdmin.from('servicios').select('*'),
+        supabaseAdmin.from('tarifas_peso').select('*').order('peso_min', { ascending: true }),
+        supabaseAdmin.from('servicios_extra').select('*').order('created_at', { ascending: false }),
+        supabaseAdmin.from('alimentos').select('*').order('nombre', { ascending: true }),
       ]);
 
       if (reservasRes.data) setReservas(reservasRes.data);
       if (clientesRes.data) setClientes(clientesRes.data);
       if (mascotasRes.data) setMascotas(mascotasRes.data);
-      if (serviciosRes.data) setServicios(serviciosRes.data);
+      if (serviciosRes.data) {
+        console.log('Servicios cargados:', serviciosRes.data);
+        setServicios(serviciosRes.data);
+      }
       if (tarifasRes.data) setTarifasPeso(tarifasRes.data);
       if (extrasRes.data) setServiciosExtra(extrasRes.data);
       if (alimentosRes.data) setAlimentos(alimentosRes.data);
@@ -50,7 +53,7 @@ export function Reservas() {
       try {
         // También podrías querer eliminar registros relacionados en otras tablas
         // (transacciones, contratos, etc.) o manejarlo con políticas de Supabase (ON DELETE CASCADE)
-        await supabase.from('reservas').delete().eq('id', id);
+        await supabaseAdmin.from('reservas').delete().eq('id', id);
         setReservas(reservas.filter(r => r.id !== id));
         alert('Reserva eliminada con éxito.');
       } catch (error: any) {
@@ -322,7 +325,7 @@ function NewReservaModal({
 
       let alimentoId = formData.id_alimento;
       if (alimentoId === 'otro' && formData.nuevo_alimento) {
-        const { data: nuevoAlimento, error: alimentoError } = await supabase
+        const { data: nuevoAlimento, error: alimentoError } = await supabaseAdmin
           .from('alimentos')
           .insert({ nombre: formData.nuevo_alimento })
           .select()
@@ -349,7 +352,7 @@ function NewReservaModal({
         estado: 'Confirmada',
       };
 
-      const { data: reserva, error: reservaError } = await supabase
+      const { data: reserva, error: reservaError } = await supabaseAdmin
         .from('reservas')
         .insert(reservaData)
         .select()
@@ -364,7 +367,7 @@ function NewReservaModal({
         // Simulación de la generación del contrato
         const urlDocumentoSimulada = `/api/contratos/generar?id=${nuevaReserva.id}`;
 
-        await supabase.from('contratos').insert([
+        await supabaseAdmin.from('contratos').insert([
           {
             id_reserva: nuevaReserva.id,
             url_documento: urlDocumentoSimulada,
@@ -396,7 +399,7 @@ function NewReservaModal({
       }
 
       if (serviciosParaGuardar.length > 0) {
-        const { error: rseError } = await supabase.from('reserva_servicios_extra').insert(serviciosParaGuardar);
+        const { error: rseError } = await supabaseAdmin.from('reserva_servicios_extra').insert(serviciosParaGuardar);
         if (rseError) throw rseError;
       }
       
@@ -412,7 +415,7 @@ function NewReservaModal({
         estado_pago: 'Pendiente',
       };
 
-      const { error: transaccionError } = await supabase.from('transacciones').insert(transaccionData);
+      const { error: transaccionError } = await supabaseAdmin.from('transacciones').insert(transaccionData);
       if (transaccionError) throw transaccionError;
       
       if (formData.monto_anticipo && Number(formData.monto_anticipo) > 0) {
@@ -427,7 +430,7 @@ function NewReservaModal({
           metodo_pago: formData.metodo_pago_anticipo,
           estado_pago: 'Pagado',
         };
-        const { error: anticipoError } = await supabase.from('transacciones').insert(anticipoData);
+        const { error: anticipoError } = await supabaseAdmin.from('transacciones').insert(anticipoData);
         if (anticipoError) throw anticipoError;
       }
 
@@ -496,11 +499,14 @@ function NewReservaModal({
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">Seleccionar servicio</option>
-                  {servicios.map((s) => (
-                    <option key={s.id} value={s.id}>
-                      {s.nombre} - ${Number(s.precio_base).toLocaleString('es-MX')}/día
-                    </option>
-                  ))}
+                  {servicios.map((s) => {
+                    const displayName = s.nombre === 'Pensión' ? 'Hotel/Pensión' : s.nombre;
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {`${displayName} - $${Number(s.precio_base).toLocaleString('es-MX')}/día`}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -793,7 +799,7 @@ function EditReservaModal({
   // Lógica para cargar servicios extra existentes
   useEffect(() => {
     const fetchServicios = async () => {
-      const { data } = await supabase
+      const { data } = await supabaseAdmin
         .from('reserva_servicios_extra')
         .select('id_servicio_extra')
         .eq('id_reserva', reserva.id);
@@ -855,7 +861,7 @@ function EditReservaModal({
       
       delete (reservaUpdate as any).servicios_extra_seleccionados;
 
-      const { error: updateError } = await supabase
+      const { error: updateError } = await supabaseAdmin
         .from('reservas')
         .update(reservaUpdate)
         .eq('id', reserva.id);
@@ -863,7 +869,7 @@ function EditReservaModal({
       if (updateError) throw updateError;
 
       // Actualizar servicios extra
-      await supabase.from('reserva_servicios_extra').delete().eq('id_reserva', reserva.id);
+      await supabaseAdmin.from('reserva_servicios_extra').delete().eq('id_reserva', reserva.id);
       
       const serviciosParaGuardar: any[] = [];
       for (const servicioId in formData.servicios_extra_seleccionados) {
@@ -883,7 +889,7 @@ function EditReservaModal({
       }
 
       if (serviciosParaGuardar.length > 0) {
-        const { error: rseError } = await supabase.from('reserva_servicios_extra').insert(serviciosParaGuardar);
+        const { error: rseError } = await supabaseAdmin.from('reserva_servicios_extra').insert(serviciosParaGuardar);
         if (rseError) throw rseError;
       }
 
