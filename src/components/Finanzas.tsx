@@ -52,6 +52,7 @@ export function Finanzas() {
  
    const ingresosMesActual = transacciones 
      .filter(t => { 
+       if (!t.fecha) return false; 
        const fecha = new Date(t.fecha); 
        return t.tipo === 'Ingreso' && fecha.getMonth() === mesActual && fecha.getFullYear() === anoActual; 
      }) 
@@ -59,6 +60,7 @@ export function Finanzas() {
  
    const egresosMesActual = transacciones 
      .filter(t => { 
+       if (!t.fecha) return false; 
        const fecha = new Date(t.fecha); 
        return t.tipo === 'Egreso' && fecha.getMonth() === mesActual && fecha.getFullYear() === anoActual; 
      }) 
@@ -167,7 +169,7 @@ export function Finanzas() {
                  return ( 
                    <tr key={transaccion.id} className="border-b border-gray-100 hover:bg-gray-50"> 
                      <td className="px-4 py-3 text-gray-700"> 
-                       {new Date(transaccion.fecha).toLocaleDateString('es-ES')} 
+                       {transaccion.fecha ? new Date(transaccion.fecha).toLocaleDateString('es-ES') : '-'} 
                      </td> 
                      <td className="px-4 py-3"> 
                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium ${ 
@@ -277,21 +279,29 @@ export function Finanzas() {
    ); 
  } 
  
- function EditTransaccionModal({ transaccion, onClose, onSuccess, ubicaciones }) {
+ function EditTransaccionModal({ transaccion, onClose, onSuccess, ubicaciones }: { transaccion: TransaccionFinanciera; onClose: () => void; onSuccess: () => void; ubicaciones: Ubicacion[]; }) {
   const [formData, setFormData] = useState({
     ...transaccion,
-    fecha: new Date(transaccion.fecha).toISOString().split('T')[0],
+    fecha: (transaccion.fecha ? new Date(transaccion.fecha) : new Date()).toISOString().split('T')[0],
   });
   const [submitting, setSubmitting] = useState(false);
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setSubmitting(true);
 
     try {
+      const payload = {
+        tipo: formData.tipo as 'Ingreso' | 'Egreso',
+        monto: Number((formData as any).monto),
+        fecha: formData.fecha,
+        descripcion: formData.descripcion ?? null,
+        categoria: formData.categoria ?? null,
+        id_ubicacion: formData.id_ubicacion ?? null,
+      };
       const { error } = await supabase
         .from('transacciones_financieras')
-        .update({ ...formData, monto: parseFloat(formData.monto) })
+        .update(payload)
         .eq('id', transaccion.id);
 
       if (error) throw error;
@@ -355,7 +365,7 @@ export function Finanzas() {
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
             <select
-              value={formData.categoria}
+              value={formData.categoria ?? ''}
               onChange={(e) => setFormData({ ...formData, categoria: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >
@@ -373,8 +383,8 @@ export function Finanzas() {
             <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación*</label>
             <select
               required
-              value={formData.id_ubicacion}
-              onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value })}
+              value={formData.id_ubicacion ?? ''}
+              onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value || null })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               disabled={ubicaciones.length === 0}
             >
@@ -420,15 +430,15 @@ export function Finanzas() {
    onSuccess: () => void; 
    ubicaciones: Ubicacion[]; 
  }) { 
-   const [formData, setFormData] = useState({ 
-     tipo: 'Egreso' as 'Ingreso' | 'Egreso', 
-     monto: '', 
-     fecha: new Date().toISOString().split('T')[0], 
-     descripcion: '', 
-     categoria: '', 
-     id_ubicacion: ubicaciones.length === 1 ? ubicaciones[0].id : '', 
-   }); 
-   const [submitting, setSubmitting] = useState(false); 
+  const [formData, setFormData] = useState({ 
+    tipo: 'Egreso' as 'Ingreso' | 'Egreso', 
+    monto: '', 
+    fecha: new Date().toISOString().split('T')[0], 
+    descripcion: '', 
+    categoria: '', 
+    id_ubicacion: ubicaciones.length === 1 ? ubicaciones[0].id : null as string | null, 
+  }); 
+  const [submitting, setSubmitting] = useState(false); 
  
    async function handleSubmit(e: React.FormEvent) { 
      e.preventDefault(); 
@@ -437,8 +447,12 @@ export function Finanzas() {
      try { 
        const { error } = await supabase.from('transacciones_financieras').insert([ 
          { 
-           ...formData, 
-           monto: parseFloat(formData.monto), 
+           tipo: formData.tipo,
+           monto: Number(formData.monto),
+           fecha: formData.fecha,
+           descripcion: formData.descripcion || null,
+           categoria: formData.categoria || null,
+           id_ubicacion: formData.id_ubicacion,
          }, 
        ]); 
  
@@ -521,8 +535,8 @@ export function Finanzas() {
              <label className="block text-sm font-medium text-gray-700 mb-1">Ubicación*</label> 
              <select 
                required 
-               value={formData.id_ubicacion} 
-               onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value })} 
+               value={formData.id_ubicacion ?? ''} 
+               onChange={(e) => setFormData({ ...formData, id_ubicacion: e.target.value || null })} 
                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500" 
                disabled={ubicaciones.length === 0} 
              > 

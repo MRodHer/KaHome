@@ -1,12 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { supabaseAdmin } from '../lib/supabase';
 import { type View } from '../App';
-import { ClientesMascotas } from './ClientesMascotas';
-import Reservas from './Reservas';
-import ConsumoAlimentos from './ConsumoAlimentos';
-import Finanzas from './Finanzas';
-import { Notificaciones } from './Notificaciones';
-import { LayoutDashboard, Users, Calendar, DollarSign, BarChart2, Bell, AlertCircle } from 'lucide-react';
+import { Users, Calendar, DollarSign, AlertCircle } from 'lucide-react';
 
 interface StatCardProps {
   icon: ReactNode;

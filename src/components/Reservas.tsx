@@ -269,7 +269,6 @@ function NewReservaModal({
     monto_anticipo: '',
   });
   const [submitting, setSubmitting] = useState(false);
-  const [costos, setCostos] = useState({ subtotal: 0, iva: 0, total: 0, dias: 0 });
 
   const clientesFiltrados = clienteSearch.trim()
     ? clientes.filter(c => c.nombre.toLowerCase().includes(clienteSearch.trim().toLowerCase()))
@@ -311,7 +310,7 @@ function NewReservaModal({
     setSubmitting(true);
 
     try {
-      const { subtotal, iva, total, dias } = calcularCostosReserva(
+      const { iva, total, dias } = calcularCostosReserva(
         formData,
         servicioSeleccionado,
         mascotaSeleccionada,
@@ -405,32 +404,28 @@ function NewReservaModal({
       
       const transaccionData = {
         id_reserva: reserva.id,
-        id_cliente: formData.id_cliente,
+        id_ubicacion: reserva.id_ubicacion ?? null,
+        categoria: 'Reserva',
         tipo: 'Ingreso',
-        descripcion: `Reserva #${reserva.id} - ${servicioSeleccionado?.nombre}`,
+        descripcion: `Reserva #${reserva.id} - ${servicioSeleccionado?.nombre ?? ''}`,
         monto: total,
-        subtotal: subtotal,
-        iva: iva,
-        metodo_pago: 'Pendiente',
-        estado_pago: 'Pendiente',
+        fecha: new Date().toISOString(),
       };
 
-      const { error: transaccionError } = await supabaseAdmin.from('transacciones').insert(transaccionData);
+      const { error: transaccionError } = await supabaseAdmin.from('transacciones_financieras').insert(transaccionData);
       if (transaccionError) throw transaccionError;
       
       if (formData.monto_anticipo && Number(formData.monto_anticipo) > 0) {
         const anticipoData = {
           id_reserva: reserva.id,
-          id_cliente: formData.id_cliente,
+          id_ubicacion: reserva.id_ubicacion ?? null,
+          categoria: 'Anticipo',
           tipo: 'Ingreso',
           descripcion: `Anticipo Reserva #${reserva.id}`,
           monto: Number(formData.monto_anticipo),
-          subtotal: Number(formData.monto_anticipo) / (formData.solicita_factura ? 1.16 : 1),
-          iva: formData.solicita_factura ? Number(formData.monto_anticipo) - (Number(formData.monto_anticipo) / 1.16) : 0,
-          metodo_pago: formData.metodo_pago_anticipo,
-          estado_pago: 'Pagado',
+          fecha: new Date().toISOString(),
         };
-        const { error: anticipoError } = await supabaseAdmin.from('transacciones').insert(anticipoData);
+        const { error: anticipoError } = await supabaseAdmin.from('transacciones_financieras').insert(anticipoData);
         if (anticipoError) throw anticipoError;
       }
 
@@ -794,7 +789,6 @@ function EditReservaModal({
     servicios_extra_seleccionados: {} as Record<string, boolean>,
   });
   const [submitting, setSubmitting] = useState(false);
-  const [costos, setCostos] = useState({ subtotal: 0, iva: 0, total: 0, dias: 0 });
 
   // Lógica para cargar servicios extra existentes
   useEffect(() => {
@@ -807,7 +801,9 @@ function EditReservaModal({
       const seleccionados: Record<string, boolean> = {};
       if (data) {
         data.forEach(item => {
-          seleccionados[item.id_servicio_extra] = true;
+          if (item.id_servicio_extra) {
+            seleccionados[item.id_servicio_extra] = true;
+          }
         });
       }
       setFormData(prev => ({ ...prev, servicios_extra_seleccionados: seleccionados }));
@@ -818,34 +814,13 @@ function EditReservaModal({
   const mascotaSeleccionada = mascotas.find(m => m.id === formData.id_mascota);
   const servicioSeleccionado = servicios.find(s => s.id === formData.id_servicio);
 
-  // Recalcular costos
-  useEffect(() => {
-    const nuevosCostos = calcularCostosReserva(
-      formData,
-      servicioSeleccionado,
-      mascotaSeleccionada,
-      tarifasPeso,
-      serviciosExtra
-    );
-    setCostos(nuevosCostos);
-  }, [
-    formData.fecha_inicio,
-    formData.fecha_fin,
-    formData.id_servicio,
-    formData.solicita_factura,
-    formData.servicios_extra_seleccionados,
-    servicioSeleccionado,
-    mascotaSeleccionada,
-    tarifasPeso,
-    serviciosExtra,
-  ]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
 
     try {
-      const { subtotal, iva, total, dias } = calcularCostosReserva(
+      const { iva, total, dias } = calcularCostosReserva(
         formData,
         servicioSeleccionado,
         mascotaSeleccionada,
@@ -935,7 +910,7 @@ function EditReservaModal({
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Estado</label>
             <select
-              value={formData.estado}
+              value={formData.estado ?? ''}
               onChange={e => setFormData({...formData, estado: e.target.value})}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             >

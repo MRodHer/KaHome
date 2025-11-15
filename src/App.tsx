@@ -1,19 +1,18 @@
-import { useState } from 'react';
-import type React from 'react';
+import { useState, useEffect } from 'react';
+import { supabase } from './lib/supabase';
 import { Dashboard } from './components/Dashboard';
 import { ClientesMascotas } from './components/ClientesMascotas';
 import { Reservas } from './components/Reservas';
 import { Finanzas } from './components/Finanzas';
-import { ConsumoAlimentos } from './components/ConsumoAlimentos';
-import { DashboardConsumo } from './components/DashboardConsumo';
 import { CalendarioReservas } from './components/CalendarioReservas';
+import { PortalCliente } from './components/PortalCliente';
 import { Notificaciones } from './components/Notificaciones';
-import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, Dog, BarChart2, Bell } from 'lucide-react';
+import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, Dog, Bell } from 'lucide-react';
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationContainer from './components/NotificationContainer';
+import { Session } from '@supabase/supabase-js';
 
-// Exportar el tipo View para que otros componentes lo puedan usar
-export type View = 'dashboard' | 'clientes' | 'reservas' | 'finanzas' | 'consumo' | 'dashboard-consumo' | 'calendario' | 'notificaciones';
+export type View = 'dashboard' | 'clientes' | 'reservas' | 'finanzas' | 'calendario' | 'notificaciones';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -24,8 +23,6 @@ function AppContent() {
     { id: 'clientes' as View, name: 'Clientes y Mascotas', icon: Users },
     { id: 'reservas' as View, name: 'Reservas', icon: Calendar },
     { id: 'finanzas' as View, name: 'Finanzas', icon: DollarSign },
-    { id: 'consumo' as View, name: 'Consumo Alimentos', icon: Dog },
-    { id: 'dashboard-consumo' as View, name: 'Dashboard Consumo', icon: BarChart2 },
     { id: 'calendario' as View, name: 'Calendario', icon: Calendar },
     { id: 'notificaciones' as View, name: 'Notificaciones', icon: Bell },
   ];
@@ -96,6 +93,7 @@ function AppContent() {
                 {navigation.find(n => n.id === currentView)?.name}
               </h2>
             </div>
+            {/* TODO: Reemplazar esta información estática con datos del usuario de la sesión */}
             <div className="flex items-center gap-4">
               <div className="text-right">
                 <p className="text-sm font-medium text-gray-900">Pensión Metepec</p>
@@ -108,12 +106,11 @@ function AppContent() {
           </div>
 
           <div className="p-6">
+            {/* Aquí se renderiza la vista actual */}
             {currentView === 'dashboard' && <Dashboard setCurrentView={setCurrentView} />}
             {currentView === 'clientes' && <ClientesMascotas />}
             {currentView === 'reservas' && <Reservas />}
             {currentView === 'finanzas' && <Finanzas />}
-            {currentView === 'consumo' && <ConsumoAlimentos />}
-            {currentView === 'dashboard-consumo' && <DashboardConsumo />}
             {currentView === 'calendario' && <CalendarioReservas />}
             {currentView === 'notificaciones' && <Notificaciones />}
           </div>
@@ -123,13 +120,36 @@ function AppContent() {
   );
 }
 
-const App: React.FC = () => {
+function App() {
+  const [session, setSession] = useState<Session | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const getSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      setSession(session);
+      setLoading(false);
+    };
+
+    getSession();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Cargando...</div>;
+  }
+
   return (
     <NotificationProvider>
-      <AppContent />
+      {!session ? <PortalCliente /> : <AppContent />}
       <NotificationContainer />
     </NotificationProvider>
   );
-};
+}
 
 export default App;
