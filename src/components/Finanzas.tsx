@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'; 
-import { supabaseAdmin, type TransaccionFinanciera, type Ubicacion } from '../lib/supabase'; 
+import { supabase, type TransaccionFinanciera, type Ubicacion } from '../lib/supabase'; 
 import { DollarSign, TrendingUp, TrendingDown, Plus, Edit, Trash2 } from 'lucide-react'; 
 
 export function Finanzas() { 
@@ -17,8 +17,8 @@ export function Finanzas() {
    async function loadData() { 
      try { 
        const [transaccionesRes, ubicacionesRes] = await Promise.all([ 
-         supabaseAdmin.from('transacciones_financieras').select('*').order('fecha', { ascending: false }), 
-         supabaseAdmin.from('ubicaciones').select('*'), 
+         supabase.from('transacciones_financieras').select('*').order('fecha', { ascending: false }), 
+         supabase.from('ubicaciones').select('*'), 
        ]); 
  
        if (transaccionesRes.error) throw transaccionesRes.error; 
@@ -63,7 +63,25 @@ export function Finanzas() {
        return t.tipo === 'Egreso' && fecha.getMonth() === mesActual && fecha.getFullYear() === anoActual; 
      }) 
      .reduce((sum, t) => sum + Number(t.monto), 0); 
- 
+
+   async function handleDeleteTransaccion(id: string) {
+     if (window.confirm('¿Estás seguro de que quieres eliminar esta transacción?')) {
+       try {
+         const { error } = await supabase
+           .from('transacciones_financieras')
+           .delete()
+           .eq('id', id);
+
+         if (error) throw error;
+
+         setTransacciones(transacciones.filter((t) => t.id !== id));
+       } catch (error) {
+         console.error('Error deleting transaction:', error);
+         alert('Error al eliminar la transacción.');
+       }
+     }
+   }
+
    if (loading) { 
      return ( 
        <div className="flex items-center justify-center h-64"> 
@@ -211,27 +229,23 @@ export function Finanzas() {
            ubicaciones={ubicaciones} 
          /> 
        )} 
+
+       {editingTransaccion && (
+         <EditTransaccionModal
+           transaccion={editingTransaccion}
+           onClose={() => setEditingTransaccion(null)}
+           onSuccess={() => {
+             setEditingTransaccion(null);
+             loadData();
+           }}
+           ubicaciones={ubicaciones}
+         />
+       )}
      </div> 
    ); 
  }
 
- async function handleDeleteTransaccion(id: string) {
-  if (window.confirm('¿Estás seguro de que quieres eliminar esta transacción?')) {
-    try {
-      const { error } = await supabaseAdmin
-        .from('transacciones_financieras')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
-
-      setTransacciones(transacciones.filter((t) => t.id !== id));
-    } catch (error) {
-      console.error('Error deleting transaction:', error);
-      alert('Error al eliminar la transacción.');
-    }
-  }
-}
+ 
  
  function FinanceCard({ 
    title, 

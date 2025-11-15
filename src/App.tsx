@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import type React from 'react';
 import { Dashboard } from './components/Dashboard';
 import { ClientesMascotas } from './components/ClientesMascotas';
 import { Reservas } from './components/Reservas';
@@ -6,7 +7,6 @@ import { Finanzas } from './components/Finanzas';
 import { ConsumoAlimentos } from './components/ConsumoAlimentos';
 import { DashboardConsumo } from './components/DashboardConsumo';
 import { CalendarioReservas } from './components/CalendarioReservas';
-import { PortalCliente } from './components/PortalCliente';
 import { Notificaciones } from './components/Notificaciones';
 import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, Dog, BarChart2, Bell } from 'lucide-react';
 import { NotificationProvider } from './context/NotificationContext';
@@ -123,13 +123,13 @@ function AppContent() {
   );
 }
 
-function App() {
+const App: React.FC = () => {
   return (
     <NotificationProvider>
       <AppContent />
       <NotificationContainer />
     </NotificationProvider>
   );
-}
+};
 
 export default App;

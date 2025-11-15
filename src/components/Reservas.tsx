@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { supabaseAdmin, type Reserva, type Cliente, type Mascota, type Servicio, type TarifaPeso, type ServicioExtra, type Alimento } from '../lib/supabase';
-import { Calendar as CalendarIcon, Plus, Filter } from 'lucide-react';
+import { Calendar as CalendarIcon, Plus, Filter, Edit3, Trash2 } from 'lucide-react';
 
 export function Reservas() {
   const [reservas, setReservas] = useState<Reserva[]>([]);
