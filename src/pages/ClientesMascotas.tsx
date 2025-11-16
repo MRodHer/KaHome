@@ -162,7 +162,7 @@ const ClientesMascotas = () => {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Gestión de Clientes y Mascotas</h1>
+      <h1 className="text-2xl font-bold mb-4">Clientes</h1>
       <div className="flex justify-between items-center mb-4">
         <div className="relative w-1/3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -179,10 +179,7 @@ const ClientesMascotas = () => {
             <PlusCircle className="mr-2" size={20} />
             Nuevo Cliente
           </Button>
-          <Button onClick={openNewMascotaModal}>
-            <PlusCircle className="mr-2" size={20} />
-            Nueva Mascota
-          </Button>
+          {/* Botón "Nueva Mascota" removido según requerimiento */}
         </div>
       </div>
 
@@ -615,7 +612,7 @@ const ClientesMascotas = () => {
 
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">Gestión de Clientes y Mascotas</h1>
+      <h1 className="text-2xl font-bold mb-4">Clientes</h1>
       <div className="flex justify-between items-center mb-4">
         <div className="relative w-1/3">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={20} />
@@ -632,10 +629,7 @@ const ClientesMascotas = () => {
             <PlusCircle className="mr-2" size={20} />
             Nuevo Cliente
           </Button>
-          <Button onClick={openNewMascotaModal}>
-            <PlusCircle className="mr-2" size={20} />
-            Nueva Mascota
-          </Button>
+          {/* Botón "Nueva Mascota" removido según requerimiento */}
         </div>
       </div>
 

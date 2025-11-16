@@ -8,11 +8,12 @@ import { CalendarioReservas } from './components/CalendarioReservas';
 import { PortalCliente } from './components/PortalCliente';
 import { Notificaciones } from './components/Notificaciones';
 import { LayoutDashboard, Users, Calendar, DollarSign, Menu, X, Dog, Bell } from 'lucide-react';
+import { MascotasDashboard } from './components/MascotasDashboard';
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationContainer from './components/NotificationContainer';
 import { Session } from '@supabase/supabase-js';
 
-export type View = 'dashboard' | 'clientes' | 'reservas' | 'finanzas' | 'calendario' | 'notificaciones';
+export type View = 'dashboard' | 'clientes' | 'mascotas' | 'reservas' | 'finanzas' | 'calendario' | 'notificaciones';
 
 function AppContent() {
   const [currentView, setCurrentView] = useState<View>('dashboard');
@@ -20,7 +21,8 @@ function AppContent() {
 
   const navigation = [
     { id: 'dashboard' as View, name: 'Panel de Control', icon: LayoutDashboard },
-    { id: 'clientes' as View, name: 'Clientes y Mascotas', icon: Users },
+    { id: 'clientes' as View, name: 'Clientes', icon: Users },
+    { id: 'mascotas' as View, name: 'Mascotas', icon: Dog },
     { id: 'reservas' as View, name: 'Reservas', icon: Calendar },
     { id: 'finanzas' as View, name: 'Finanzas', icon: DollarSign },
     { id: 'calendario' as View, name: 'Calendario', icon: Calendar },
@@ -109,6 +111,7 @@ function AppContent() {
             {/* Aquí se renderiza la vista actual */}
             {currentView === 'dashboard' && <Dashboard setCurrentView={setCurrentView} />}
             {currentView === 'clientes' && <ClientesMascotas />}
+            {currentView === 'mascotas' && <MascotasDashboard />}
             {currentView === 'reservas' && <Reservas />}
             {currentView === 'finanzas' && <Finanzas />}
             {currentView === 'calendario' && <CalendarioReservas />}

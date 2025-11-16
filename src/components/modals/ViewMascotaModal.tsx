@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 interface Mascota {
   id: string;
@@ -12,6 +12,11 @@ interface Mascota {
   historial_medico: string;
   url_foto: string;
   fecha_de_nacimiento: string;
+  // Campos opcionales de cuidados especiales y protocolo
+  cuidados_especiales?: boolean | null;
+  protocolo_medicamentos?: string | null;
+  protocolo_dietas_especiales?: string | null;
+  protocolo_cuidado_geriatrico?: string | null;
 }
 
 interface ViewMascotaModalProps {
@@ -22,6 +27,8 @@ interface ViewMascotaModalProps {
 
 const ViewMascotaModal: React.FC<ViewMascotaModalProps> = ({ isOpen, onClose, mascota }) => {
   if (!isOpen || !mascota) return null;
+
+  const [mostrarCuidados, setMostrarCuidados] = useState(false);
 
   const calcularEdad = (fechaNacimiento: string) => {
     if (!fechaNacimiento) return 'N/A';
@@ -61,6 +68,38 @@ const ViewMascotaModal: React.FC<ViewMascotaModalProps> = ({ isOpen, onClose, ma
           <h4 className="font-semibold">Historial Médico y Notas:</h4>
           <p className="mt-2 p-4 bg-gray-100 rounded">{mascota.historial_medico || 'Sin historial registrado.'}</p>
         </div>
+
+        {mascota.cuidados_especiales && (
+          <div className="mt-6 border-t border-gray-200 pt-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-gray-900">Cuidados Especiales</h3>
+              <button
+                type="button"
+                onClick={() => setMostrarCuidados((prev) => !prev)}
+                className="text-sm text-blue-600 hover:underline"
+              >
+                {mostrarCuidados ? 'Ocultar' : 'Mostrar'}
+              </button>
+            </div>
+
+            {mostrarCuidados && (
+              <div className="mt-3 space-y-3">
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Administración de medicamentos</p>
+                  <p className="text-sm text-gray-800 bg-gray-50 rounded p-3">{mascota.protocolo_medicamentos || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Dietas Especiales</p>
+                  <p className="text-sm text-gray-800 bg-gray-50 rounded p-3">{mascota.protocolo_dietas_especiales || '—'}</p>
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">Cuidado Geriátrico</p>
+                  <p className="text-sm text-gray-800 bg-gray-50 rounded p-3">{mascota.protocolo_cuidado_geriatrico || '—'}</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
         <div className="flex justify-end mt-6">
             <button onClick={onClose} className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cerrar</button>
         </div>

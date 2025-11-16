@@ -26,9 +26,10 @@ interface ClienteModalProps {
   onSave: (clienteData: any) => void;
   cliente: Cliente | null;
   ubicaciones: Ubicacion[];
+  onCreateAndAddMascota?: (clienteData: any) => void;
 }
 
-const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cliente, ubicaciones }) => {
+const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cliente, ubicaciones, onCreateAndAddMascota }) => {
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
@@ -41,6 +42,7 @@ const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cl
     municipio: '',
     estado: '',
   });
+  const [usarDireccion, setUsarDireccion] = useState(false);
 
   useEffect(() => {
     if (cliente) {
@@ -56,6 +58,7 @@ const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cl
         municipio: cliente.municipio || '',
         estado: cliente.estado || '',
       });
+      setUsarDireccion(Boolean(cliente.calle_numero || cliente.colonia || cliente.codigo_postal || cliente.municipio || cliente.estado));
     } else {
       // Reset form when opening for a new client
       setFormData({
@@ -70,6 +73,7 @@ const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cl
         municipio: '',
         estado: '',
       });
+      setUsarDireccion(false);
     }
   }, [cliente, isOpen]);
 
@@ -85,7 +89,17 @@ const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cl
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSave(formData);
+    const payload = usarDireccion
+      ? formData
+      : {
+          ...formData,
+          calle_numero: '',
+          colonia: '',
+          codigo_postal: '',
+          municipio: '',
+          estado: '',
+        };
+    onSave(payload);
   };
 
   if (!isOpen) return null;
@@ -105,11 +119,24 @@ const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cl
                 <option key={u.id} value={u.id}>{u.nombre}</option>
               ))}
             </select>
-            <input type="text" name="calle_numero" value={formData.calle_numero} onChange={handleChange} placeholder="Calle y Número" className="p-2 border rounded"/>
-            <input type="text" name="colonia" value={formData.colonia} onChange={handleChange} placeholder="Colonia" className="p-2 border rounded"/>
-            <input type="text" name="codigo_postal" value={formData.codigo_postal} onChange={handleChange} placeholder="Código Postal" className="p-2 border rounded"/>
-            <input type="text" name="municipio" value={formData.municipio} onChange={handleChange} placeholder="Municipio" className="p-2 border rounded"/>
-            <input type="text" name="estado" value={formData.estado} onChange={handleChange} placeholder="Estado" className="p-2 border rounded"/>
+            <label className="flex items-center md:col-span-2">
+              <input
+                type="checkbox"
+                checked={usarDireccion}
+                onChange={(e) => setUsarDireccion(e.target.checked)}
+                className="mr-2"
+              />
+              <span>Agregar dirección (opcional)</span>
+            </label>
+            {usarDireccion && (
+              <>
+                <input type="text" name="calle_numero" value={formData.calle_numero} onChange={handleChange} placeholder="Calle y Número" className="p-2 border rounded"/>
+                <input type="text" name="colonia" value={formData.colonia} onChange={handleChange} placeholder="Colonia" className="p-2 border rounded"/>
+                <input type="text" name="codigo_postal" value={formData.codigo_postal} onChange={handleChange} placeholder="Código Postal" className="p-2 border rounded"/>
+                <input type="text" name="municipio" value={formData.municipio} onChange={handleChange} placeholder="Municipio" className="p-2 border rounded"/>
+                <input type="text" name="estado" value={formData.estado} onChange={handleChange} placeholder="Estado" className="p-2 border rounded"/>
+              </>
+            )}
           </div>
           <div className="mt-4">
             <label className="flex items-center">
@@ -120,6 +147,28 @@ const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cl
           <div className="flex justify-end gap-4 mt-6">
             <button type="button" onClick={onClose} className="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancelar</button>
             <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Guardar</button>
+            {!cliente && onCreateAndAddMascota && (
+              <button
+                type="button"
+                onClick={() => {
+                  const payload = usarDireccion
+                    ? formData
+                    : {
+                        ...formData,
+                        calle_numero: '',
+                        colonia: '',
+                        codigo_postal: '',
+                        municipio: '',
+                        estado: '',
+                      };
+                  onCreateAndAddMascota(payload);
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                title="Guarda el cliente y abre el formulario para añadir una mascota"
+              >
+                Añadir Mascota
+              </button>
+            )}
           </div>
         </form>
       </div>

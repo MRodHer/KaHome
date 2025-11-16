@@ -194,19 +194,22 @@ export const ClientesMascotas: React.FC = () => {
   };
 
   const handleSaveMascota = async (mascotaData: any) => {
-    try {
-      let response;
+    const tryPersist = async (payload: any) => {
       if (selectedMascota) {
-        response = await supabaseAdmin.from('mascotas').update(mascotaData).eq('id', selectedMascota.id);
+        return await supabaseAdmin.from('mascotas').update(payload).eq('id', selectedMascota.id);
       } else {
-        response = await supabaseAdmin.from('mascotas').insert([mascotaData]);
+        return await supabaseAdmin.from('mascotas').insert([payload]);
       }
-      if (response.error) throw response.error;
+    };
+    try {
+      const res = await tryPersist(mascotaData);
+      if (res.error) throw res.error;
       fetchData();
       closeMascotaModal();
       addNotification(`Mascota '${mascotaData.nombre}' guardada con éxito`, 'success');
     } catch (error: any) {
-      addNotification('Error al guardar la mascota: ' + error.message, 'error');
+      const msg: string = String(error?.message || 'Error desconocido');
+      addNotification('Error al guardar la mascota: ' + msg, 'error');
     }
   };
 
@@ -275,7 +278,7 @@ export const ClientesMascotas: React.FC = () => {
     <div className="p-6 bg-gray-50 min-h-screen">
       <div className="max-w-7xl mx-auto">
         <div className="flex justify-between items-center mb-6">
-          <h1 className="text-3xl font-bold text-gray-800">Gestión de Clientes y Mascotas</h1>
+          <h1 className="text-3xl font-bold text-gray-800">Clientes</h1>
           <div className="flex gap-2">
             <button
               onClick={() => openClienteModal()}
@@ -283,13 +286,6 @@ export const ClientesMascotas: React.FC = () => {
             >
               <PlusIcon className="h-5 w-5" />
               Nuevo Cliente
-            </button>
-            <button
-              onClick={() => openMascotaModal()}
-              className="bg-green-600 text-white px-4 py-2 rounded-lg shadow hover:bg-green-700 flex items-center gap-2"
-            >
-              <PlusIcon className="h-5 w-5" />
-              Nueva Mascota
             </button>
           </div>
         </div>
@@ -414,6 +410,24 @@ export const ClientesMascotas: React.FC = () => {
         onSave={handleSaveCliente}
         cliente={selectedCliente}
         ubicaciones={ubicaciones}
+        onCreateAndAddMascota={async (clienteData: any) => {
+          try {
+            const { data, error } = await supabaseAdmin
+              .from('clientes')
+              .insert([clienteData])
+              .select()
+              .single();
+            if (error) throw error;
+            addNotification(`Cliente '${clienteData.nombre}' creado. Ahora añade una mascota.`, 'success');
+            setSelectedCliente(data);
+            setClienteModalOpen(false);
+            setMascotaModalOpen(true);
+            // Refrescar lista
+            fetchData();
+          } catch (err: any) {
+            addNotification('Error al crear el cliente y abrir mascota: ' + err.message, 'error');
+          }
+        }}
       />
 
       <MascotaModal

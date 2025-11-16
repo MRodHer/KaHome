@@ -155,6 +155,9 @@ const RAZAS_PERRO = [
   "Yorkshire Terrier",
   "Otro"
 ];
+const RAZAS_GATO = [
+  "Mestizo","Siamés","Persa","Maine Coon","Ragdoll","Bengala","Sphynx","Abisinio","Birmano","Oriental de pelo corto","Siberiano","British Shorthair","Scottish Fold","Bombay","Himalayo","Azul Ruso","Chartreux","Cornish Rex","Devon Rex","Somalí","Manx","American Shorthair","American Curl","European Shorthair","Noruego de Bosque","Selkirk Rex","Savannah","Pixie-bob","Ocicat","Tonkinés","Angora Turco","Van Turco","Peterbald","Nebelung","LaPerm","Serengeti","Exótico de pelo corto","Otro"
+];
 
 export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mascota; onClose: () => void; onSuccess: () => void }) {
   const [formData, setFormData] = useState({
@@ -166,9 +169,99 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
     fecha_ultima_vacuna: mascota.fecha_ultima_vacuna || '',
     fecha_de_nacimiento: mascota.fecha_de_nacimiento || '',
     url_foto: mascota.url_foto || '',
+    // Protocolo de manejo
+    id_alimento: (mascota as any).id_alimento || '',
+    alimento_cantidad: (mascota as any).alimento_cantidad || '',
+    alimento_frecuencia: (mascota as any).alimento_frecuencia || '',
+    alimento_horarios: (mascota as any).alimento_horarios || '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [fotoFile, setFotoFile] = useState<File | null>(null);
+  const [especieSeleccion, setEspecieSeleccion] = useState<string>(() => {
+    const esp = mascota.especie || '';
+    return esp === 'Perro' || esp === 'Gato' ? esp : esp ? 'Otro' : '';
+  });
+  const [especieOtro, setEspecieOtro] = useState<string>(() => {
+    const esp = mascota.especie || '';
+    return esp === 'Perro' || esp === 'Gato' ? '' : esp;
+  });
+  const [razasPerro, setRazasPerro] = useState<string[]>(RAZAS_PERRO);
+  const [razasGato, setRazasGato] = useState<string[]>(RAZAS_GATO);
+  const [razaOtra, setRazaOtra] = useState<string>('');
+  const [alimentosCatalogo, setAlimentosCatalogo] = useState<{ id: string; nombre: string; tipo_mascota?: string | null }[]>([]);
+
+  const mergeUnique = (base: string[], extra: string[]) => {
+    const set = new Set(base);
+    extra.forEach(e => { if (e && !set.has(e)) set.add(e); });
+    return Array.from(set);
+  };
+
+  useEffect(() => {
+    // Cargar catálogo de razas desde Supabase al abrir
+    const cargarCatalogo = async () => {
+      try {
+        const [perrosRes, gatosRes] = await Promise.all([
+          supabaseAdmin.from('catalogo_razas').select('nombre').eq('especie', 'Perro').eq('activo', true).order('nombre', { ascending: true }),
+          supabaseAdmin.from('catalogo_razas').select('nombre').eq('especie', 'Gato').eq('activo', true).order('nombre', { ascending: true }),
+        ]);
+        const perros = Array.isArray(perrosRes.data) ? perrosRes.data.map((d: any) => d.nombre).filter(Boolean) : [];
+        const gatos = Array.isArray(gatosRes.data) ? gatosRes.data.map((d: any) => d.nombre).filter(Boolean) : [];
+        setRazasPerro(mergeUnique(RAZAS_PERRO, perros));
+        setRazasGato(mergeUnique(RAZAS_GATO, gatos));
+      } catch {
+        setRazasPerro(RAZAS_PERRO);
+        setRazasGato(RAZAS_GATO);
+      }
+    };
+    cargarCatalogo();
+  }, []);
+
+  // Fallback local de alimentos por especie en caso de catálogo vacío o incompleto
+  const ALIMENTOS_FALLBACK: { id: string; nombre: string; tipo_mascota?: string | null }[] = [
+    { id: 'fallback-perro-pro-plan', nombre: 'Purina Pro Plan', tipo_mascota: 'Perro' },
+    { id: 'fallback-perro-dog-chow', nombre: 'Purina Dog Chow', tipo_mascota: 'Perro' },
+    { id: 'fallback-perro-royal-canin', nombre: 'Royal Canin', tipo_mascota: 'Perro' },
+    { id: 'fallback-perro-hills', nombre: 'Hill\'s Science Diet', tipo_mascota: 'Perro' },
+    { id: 'fallback-perro-eukanuba', nombre: 'Eukanuba', tipo_mascota: 'Perro' },
+    { id: 'fallback-perro-nupec', nombre: 'Nupec', tipo_mascota: 'Perro' },
+    { id: 'fallback-perro-pedigree', nombre: 'Pedigree', tipo_mascota: 'Perro' },
+    { id: 'fallback-perro-orijen', nombre: 'Orijen', tipo_mascota: 'Perro' },
+    { id: 'fallback-perro-acana', nombre: 'Acana', tipo_mascota: 'Perro' },
+    { id: 'fallback-gato-pro-plan', nombre: 'Purina Pro Plan', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-cat-chow', nombre: 'Purina Cat Chow', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-royal-canin', nombre: 'Royal Canin', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-hills', nombre: 'Hill\'s Science Diet', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-whiskas', nombre: 'Whiskas', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-nupec', nombre: 'Nupec', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-orijen', nombre: 'Orijen', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-acana', nombre: 'Acana', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-felix', nombre: 'Felix', tipo_mascota: 'Gato' },
+    { id: 'fallback-gato-fancy-feast', nombre: 'Fancy Feast', tipo_mascota: 'Gato' },
+  ];
+
+  useEffect(() => {
+    const cargarAlimentos = async () => {
+      try {
+        const { data, error } = await supabaseAdmin.from('alimentos').select('*').order('nombre', { ascending: true });
+        if (error) throw error;
+        const dbItems = Array.isArray(data) ? data : [];
+        const nombreSet = new Set<string>(dbItems.map((d: any) => (d.nombre || '').trim()));
+        const merged = [...dbItems];
+        if (merged.length < 5) {
+          for (const f of ALIMENTOS_FALLBACK) {
+            const nom = (f.nombre || '').trim();
+            if (!nombreSet.has(nom)) {
+              merged.push(f);
+            }
+          }
+        }
+        setAlimentosCatalogo(merged as any);
+      } catch {
+        setAlimentosCatalogo(ALIMENTOS_FALLBACK);
+      }
+    };
+    cargarAlimentos();
+  }, []);
 
   useEffect(() => {
     if (formData.fecha_de_nacimiento) {
@@ -204,9 +297,48 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
         const { data: urlData } = supabaseAdmin.storage.from('fotos-mascotas').getPublicUrl(fileName);
         fotoUrl = urlData.publicUrl;
       }
+      const especieFinal = especieSeleccion === 'Otro' ? (especieOtro || '').trim() : especieSeleccion || formData.especie;
+      let razaFinal = formData.raza;
+      const isPerro = especieFinal === 'Perro';
+      const isGato = especieFinal === 'Gato';
+      if ((isPerro || isGato) && formData.raza === 'Otro' && razaOtra.trim()) {
+        razaFinal = razaOtra.trim();
+        try {
+          await supabaseAdmin.from('catalogo_razas').insert([{ especie: especieFinal, nombre: razaFinal, activo: true }]);
+          if (isPerro) {
+            setRazasPerro(prev => mergeUnique(prev, [razaFinal]));
+          } else if (isGato) {
+            setRazasGato(prev => mergeUnique(prev, [razaFinal]));
+          }
+        } catch {
+          // ignorar duplicados
+        }
+      }
+      // Resolver alimento: si el usuario eligió un fallback, crear/obtener en DB
+      let idAlimentoFinal = formData.id_alimento;
+      try {
+        if (idAlimentoFinal && idAlimentoFinal.startsWith('fallback-')) {
+          const sel = alimentosCatalogo.find(a => a.id === idAlimentoFinal);
+          if (sel) {
+            const nombre = sel.nombre;
+            const tipo = (especieFinal === 'Perro' || especieFinal === 'Gato') ? especieFinal : sel.tipo_mascota || null;
+            const { data: existe } = await supabaseAdmin.from('alimentos').select('id').eq('nombre', nombre).limit(1);
+            let realId = Array.isArray(existe) && existe.length > 0 ? (existe[0] as any).id : null;
+            if (!realId) {
+              const { data: insertado, error: insErr } = await supabaseAdmin.from('alimentos').insert([{ nombre, tipo_mascota: tipo }]).select('id').single();
+              if (insErr) throw insErr;
+              realId = (insertado as any).id;
+            }
+            idAlimentoFinal = realId || '';
+          }
+        }
+      } catch {
+        // continuar aunque falle la creación del alimento
+      }
+
       const { error } = await supabaseAdmin
         .from('mascotas')
-        .update({ ...formData, url_foto: fotoUrl })
+        .update({ ...formData, especie: especieFinal, raza: razaFinal, url_foto: fotoUrl, id_alimento: idAlimentoFinal })
         .eq('id', mascota.id);
 
       if (error) {
@@ -240,27 +372,76 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Especie*</label>
-            <input
-              type="text"
+            <select
+              value={especieSeleccion}
+              onChange={(e) => {
+                const val = e.target.value;
+                setEspecieSeleccion(val);
+                if (val !== 'Otro') setEspecieOtro('');
+              }}
               required
-              value={formData.especie}
-              onChange={(e) => setFormData({ ...formData, especie: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-            />
+            >
+              <option value="">Seleccionar especie</option>
+              <option value="Gato">Gato</option>
+              <option value="Perro">Perro</option>
+              <option value="Otro">Otro</option>
+            </select>
+            {especieSeleccion === 'Otro' && (
+              <input
+                type="text"
+                value={especieOtro}
+                onChange={(e) => setEspecieOtro(e.target.value)}
+                placeholder="Especie personalizada"
+                required
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            )}
           </div>
           <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">Raza</label>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Raza</label>
+            {especieSeleccion === 'Perro' ? (
               <select
                 value={formData.raza}
                 onChange={(e) => setFormData({ ...formData, raza: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
               >
                 <option value="">Seleccione una raza</option>
-                {RAZAS_PERRO.map(raza => (
+                {razasPerro.map(raza => (
                   <option key={raza} value={raza}>{raza}</option>
                 ))}
               </select>
-            </div>
+            ) : especieSeleccion === 'Gato' ? (
+              <select
+                value={formData.raza}
+                onChange={(e) => setFormData({ ...formData, raza: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="">Seleccione una raza</option>
+                {razasGato.map(raza => (
+                  <option key={raza} value={raza}>{raza}</option>
+                ))}
+              </select>
+            ) : (
+              <input
+                type="text"
+                value={formData.raza}
+                onChange={(e) => setFormData({ ...formData, raza: e.target.value })}
+                placeholder="Raza"
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            )}
+            {(formData.raza === 'Otro') && (especieSeleccion === 'Perro' || especieSeleccion === 'Gato') && (
+              <input
+                type="text"
+                value={razaOtra}
+                onChange={(e) => setRazaOtra(e.target.value)}
+                placeholder="Escribe la raza"
+                required
+                className="mt-2 w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+              />
+            )}
+          </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Edad</label>
             <input
@@ -297,6 +478,61 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
               onChange={(e) => setFormData({ ...formData, fecha_ultima_vacuna: e.target.value })}
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
+          </div>
+          {/* Bloque: Protocolo de manejo */}
+          <div className="md:col-span-2 mt-2">
+            <h3 className="text-md font-semibold text-gray-900 mb-2">Protocolo de manejo</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Marca/Alimento preferido</label>
+                <select
+                  value={formData.id_alimento}
+                  onChange={(e) => setFormData({ ...formData, id_alimento: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Sin especificar</option>
+                  {alimentosCatalogo
+                    .filter(a => {
+                      if (!especieSeleccion || especieSeleccion === '') return true;
+                      const hasTipo = a && 'tipo_mascota' in a && a.tipo_mascota;
+                      if (!hasTipo) return true;
+                      return a.tipo_mascota === especieSeleccion;
+                    })
+                    .map(a => (
+                      <option key={a.id} value={a.id}>{a.nombre}</option>
+                    ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (tazas)</label>
+                <input
+                  type="number"
+                  step="0.25"
+                  value={formData.alimento_cantidad}
+                  onChange={(e) => setFormData({ ...formData, alimento_cantidad: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia (veces al día)</label>
+                <input
+                  type="number"
+                  value={formData.alimento_frecuencia}
+                  onChange={(e) => setFormData({ ...formData, alimento_frecuencia: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">Horarios</label>
+                <input
+                  type="text"
+                  value={formData.alimento_horarios}
+                  onChange={(e) => setFormData({ ...formData, alimento_horarios: e.target.value })}
+                  placeholder="Ej. 8:00 y 19:00"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+            </div>
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1">Foto</label>

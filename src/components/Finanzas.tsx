@@ -37,9 +37,10 @@ export function Finanzas() {
      filtroTipo === 'Todos' || t.tipo === filtroTipo 
    ); 
  
-   const totalIngresos = transacciones 
-     .filter(t => t.tipo === 'Ingreso') 
-     .reduce((sum, t) => sum + Number(t.monto), 0); 
+  // Ingresos devengados: solo reservas devengadas (evita contar anticipos y pagos)
+  const totalIngresos = transacciones 
+    .filter(t => t.tipo === 'Ingreso' && (t.categoria === 'Reserva Devengada' || t.categoria === 'Reserva')) 
+    .reduce((sum, t) => sum + Number(t.monto), 0); 
  
    const totalEgresos = transacciones 
      .filter(t => t.tipo === 'Egreso') 
@@ -50,13 +51,13 @@ export function Finanzas() {
    const mesActual = new Date().getMonth(); 
    const anoActual = new Date().getFullYear(); 
  
-   const ingresosMesActual = transacciones 
-     .filter(t => { 
-       if (!t.fecha) return false; 
-       const fecha = new Date(t.fecha); 
-       return t.tipo === 'Ingreso' && fecha.getMonth() === mesActual && fecha.getFullYear() === anoActual; 
-     }) 
-     .reduce((sum, t) => sum + Number(t.monto), 0); 
+  const ingresosMesActual = transacciones 
+    .filter(t => { 
+      if (!t.fecha) return false; 
+      const fecha = new Date(t.fecha); 
+      return t.tipo === 'Ingreso' && (t.categoria === 'Reserva Devengada' || t.categoria === 'Reserva') && fecha.getMonth() === mesActual && fecha.getFullYear() === anoActual; 
+    }) 
+    .reduce((sum, t) => sum + Number(t.monto), 0); 
  
    const egresosMesActual = transacciones 
      .filter(t => { 

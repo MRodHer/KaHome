@@ -27,6 +27,11 @@ VALUES
     ('Minino / Minino Plus', 'Gato'),
     ('Nucat', 'Gato'),
     ('Gatina', 'Gato'),
-    ('Nupec Felino', 'Gato'),
-    ('Kirkland', 'Gato')
-ON CONFLICT (nombre) DO NOTHING;
+('Nupec Felino', 'Gato'),
+('Kirkland', 'Gato')
+ON CONFLICT DO NOTHING;
+
+-- Rehabilitar RLS
+ALTER TABLE public.alimentos ENABLE ROW LEVEL SECURITY;
+-- Deshabilitar RLS temporalmente para insertar semillas de alimentos
+ALTER TABLE public.alimentos DISABLE ROW LEVEL SECURITY;
