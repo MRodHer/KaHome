@@ -14,25 +14,53 @@ export function CalendarioReservas() {
   useEffect(() => {
     fetchReservas();
     fetchAlimentos();
+    const channel = supabaseAdmin
+      .channel('reservas-calendar')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, () => {
+        fetchReservas();
+      })
+      .subscribe();
+    return () => {
+      supabaseAdmin.removeChannel(channel);
+    };
   }, []);
 
   async function fetchReservas() {
     const { data, error } = await supabaseAdmin
       .from('reservas')
-      .select('*, mascotas(*), clientes(*), servicios(*)');
+      .select('*, mascotas(*), clientes(*), servicios(*)')
+      .in('estado', ['Confirmada', 'PendienteCierre']);
 
     if (error) {
       console.error('Error fetching reservas:', error);
       return;
     }
 
-    const formattedEvents = data.map((reserva: any) => ({
-      id: reserva.id,
-      title: `${reserva.mascotas.nombre} (${reserva.clientes.nombre})`,
-      start: reserva.fecha_inicio,
-      end: reserva.fecha_fin,
-      extendedProps: { reserva },
-    }));
+    // Expandir cada reserva en eventos por día para que NO se vea como una sola línea atravesada.
+    // Además, mostrar solo el nombre de la mascota (sin el del cliente) como título.
+    const formattedEvents = (data || []).flatMap((reserva: any) => {
+      const startDT = new Date(reserva.fecha_inicio);
+      const endDT = new Date(reserva.fecha_fin);
+      const startDay = new Date(startDT.getFullYear(), startDT.getMonth(), startDT.getDate());
+      const endDay = new Date(endDT.getFullYear(), endDT.getMonth(), endDT.getDate());
+
+      const eventsPorDia: any[] = [];
+      for (let d = new Date(startDay); d <= endDay; d.setDate(d.getDate() + 1)) {
+        const dayStr = d.toISOString().slice(0, 10); // YYYY-MM-DD
+        const nextDay = new Date(d);
+        nextDay.setDate(d.getDate() + 1);
+        const nextStr = nextDay.toISOString().slice(0, 10);
+        eventsPorDia.push({
+          id: `${reserva.id}-${dayStr}`,
+          title: `${reserva.mascotas?.nombre ?? 'Mascota'}`,
+          start: dayStr,
+          end: nextStr,
+          allDay: true,
+          extendedProps: { reserva },
+        });
+      }
+      return eventsPorDia;
+    });
 
     setEvents(formattedEvents);
   }
@@ -78,7 +106,9 @@ export function CalendarioReservas() {
             : '—';
           const horarios = Array.isArray(r.alimento_horarios) && r.alimento_horarios.length > 0
             ? r.alimento_horarios.join(', ')
-            : '—';
+            : (typeof r.alimento_horarios === 'string' && r.alimento_horarios.trim().length > 0
+              ? r.alimento_horarios
+              : '—');
           const pertenencias = r.pertenencias && typeof r.pertenencias === 'object'
             ? Object.entries(r.pertenencias)
                 .filter(([_, v]) => Boolean(v))

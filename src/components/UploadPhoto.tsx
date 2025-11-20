@@ -3,12 +3,12 @@ import { supabase } from '../lib/supabase';
 import { Plus, Trash2 } from 'lucide-react';
 
 interface UploadPhotoProps {
-  bucket: string;
+  bucket?: string; // bucket opcional; por defecto usamos 'mascotas'
   onUpload: (url: string) => void;
   initialUrl?: string | null;
 }
 
-export function UploadPhoto({ bucket, onUpload, initialUrl }: UploadPhotoProps) {
+export function UploadPhoto({ bucket = 'fotos-mascotas', onUpload, initialUrl }: UploadPhotoProps) {
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(initialUrl || null);
 
@@ -24,7 +24,20 @@ export function UploadPhoto({ bucket, onUpload, initialUrl }: UploadPhotoProps) 
 
     setUploading(true);
     try {
-      const fileName = `${Date.now()}_${file.name}`;
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (!sessionData.session) {
+        throw new Error('Debes iniciar sesión para subir fotos');
+      }
+      const userId = sessionData.session.user.id;
+
+      // Pre-chequeo de bucket: intentar listar 1 elemento; si falla por 404, el bucket no existe
+      const { error: listError } = await supabase.storage
+        .from(bucket)
+        .list('', { limit: 1 });
+      if (listError && String(listError?.message).toLowerCase().includes('not found')) {
+        throw new Error(`Bucket '${bucket}' no existe. Crea el bucket en Supabase Storage y configura políticas.`);
+      }
+      const fileName = `${userId}/${Date.now()}_${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from(bucket)
         .upload(fileName, file);
@@ -38,9 +51,10 @@ export function UploadPhoto({ bucket, onUpload, initialUrl }: UploadPhotoProps) 
       const publicUrl = publicUrlData.publicUrl;
       setPreviewUrl(publicUrl);
       onUpload(publicUrl);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading photo:', error);
-      alert('Error al subir la foto.');
+      const msg = typeof error?.message === 'string' ? error.message : 'Error desconocido al subir la foto';
+      alert(`Error al subir la foto. ${msg}`);
     } finally {
       setUploading(false);
     }

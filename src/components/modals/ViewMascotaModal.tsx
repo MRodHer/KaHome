@@ -61,7 +61,30 @@ const ViewMascotaModal: React.FC<ViewMascotaModalProps> = ({ isOpen, onClose, ma
             <p><strong>Edad:</strong> {calcularEdad(mascota.fecha_de_nacimiento)} años</p>
             <p><strong>Peso:</strong> {mascota.peso} kg</p>
             <p><strong>Fecha de Nacimiento:</strong> {mascota.fecha_de_nacimiento ? new Date(mascota.fecha_de_nacimiento).toLocaleDateString() : 'N/A'}</p>
-            <p><strong>Última Vacuna:</strong> {mascota.fecha_ultima_vacuna ? new Date(mascota.fecha_ultima_vacuna).toLocaleDateString() : 'N/A'}</p>
+            {(() => {
+              const fecha = mascota.fecha_ultima_vacuna ? new Date(mascota.fecha_ultima_vacuna) : null;
+              const ultima = fecha && !isNaN(fecha.getTime()) ? fecha.toLocaleDateString() : 'N/A';
+              let vigencia = '';
+              if (fecha && !isNaN(fecha.getTime())) {
+                const vence = new Date(fecha);
+                vence.setDate(vence.getDate() + 365);
+                const hoy = new Date();
+                const dias = Math.ceil((vence.getTime() - hoy.getTime()) / (1000*60*60*24));
+                if (dias < 0) {
+                  vigencia = `Vencida hace ${Math.abs(dias)} días`;
+                } else {
+                  vigencia = `${dias} días restantes`;
+                }
+              }
+              return (
+                <p>
+                  <strong>Última Vacuna:</strong> {ultima}
+                  {vigencia && (
+                    <span className="ml-2 px-2 py-0.5 text-xs rounded bg-gray-100 text-gray-800 border border-gray-200">{vigencia}</span>
+                  )}
+                </p>
+              );
+            })()}
           </div>
         </div>
         <div className="mt-6">

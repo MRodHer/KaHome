@@ -12,6 +12,7 @@ import { MascotasDashboard } from './components/MascotasDashboard';
 import { NotificationProvider } from './context/NotificationContext';
 import NotificationContainer from './components/NotificationContainer';
 import { Session } from '@supabase/supabase-js';
+import AuthBar from './components/AuthBar';
 
 export type View = 'dashboard' | 'clientes' | 'mascotas' | 'reservas' | 'finanzas' | 'calendario' | 'notificaciones';
 
@@ -95,16 +96,7 @@ function AppContent() {
                 {navigation.find(n => n.id === currentView)?.name}
               </h2>
             </div>
-            {/* TODO: Reemplazar esta información estática con datos del usuario de la sesión */}
-            <div className="flex items-center gap-4">
-              <div className="text-right">
-                <p className="text-sm font-medium text-gray-900">Pensión Metepec</p>
-                <p className="text-xs text-gray-500">Administrador</p>
-              </div>
-              <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-                <span className="text-white font-semibold">A</span>
-              </div>
-            </div>
+            <AuthBar />
           </div>
 
           <div className="p-6">

@@ -277,6 +277,10 @@ export type Database = {
           peso: number | null
           raza: string | null
           url_foto: string | null
+          // Estado de actividad y esterilización
+          activo: boolean | null
+          esterilizado: boolean | null
+          motivo_inactivo: string | null
           // Campos agregados para protocolos y cuidados especiales
           cuidados_especiales: boolean | null
           protocolo_medicamentos: string | null
@@ -303,6 +307,9 @@ export type Database = {
           peso?: number | null
           raza?: string | null
           url_foto?: string | null
+          activo?: boolean | null
+          esterilizado?: boolean | null
+          motivo_inactivo?: string | null
           cuidados_especiales?: boolean | null
           protocolo_medicamentos?: string | null
           protocolo_dietas_especiales?: string | null
@@ -327,6 +334,9 @@ export type Database = {
           peso?: number | null
           raza?: string | null
           url_foto?: string | null
+          activo?: boolean | null
+          esterilizado?: boolean | null
+          motivo_inactivo?: string | null
           cuidados_especiales?: boolean | null
           protocolo_medicamentos?: string | null
           protocolo_dietas_especiales?: string | null

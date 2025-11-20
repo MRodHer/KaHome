@@ -165,28 +165,100 @@ export function Reservas() {
                         {reserva.estado}
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                      <div>
-                        <p className="text-gray-500">Cliente</p>
-                        <p className="font-medium text-gray-900">{cliente?.nombre || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Servicio</p>
-                        <p className="font-medium text-gray-900">{servicio?.nombre || '-'}</p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Fechas</p>
-                        <p className="font-medium text-gray-900">
-                          {formatDateSafe(reserva.fecha_inicio)} - {formatDateSafe(reserva.fecha_fin)}
-                        </p>
-                      </div>
-                      <div>
-                        <p className="text-gray-500">Costo Total</p>
-                        <p className="font-medium text-gray-900">
-                          ${Number(reserva.costo_total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
-                        </p>
-                      </div>
-                    </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+            <div>
+              <p className="text-gray-500">Cliente</p>
+              <p className="font-medium text-gray-900">{cliente?.nombre || '-'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Servicio</p>
+              <p className="font-medium text-gray-900">{servicio?.nombre || '-'}</p>
+            </div>
+            <div>
+              <p className="text-gray-500">Fechas</p>
+              <p className="font-medium text-gray-900">
+                {formatDateSafe(reserva.fecha_inicio)} - {formatDateSafe(reserva.fecha_fin)}
+              </p>
+            </div>
+            <div>
+              <p className="text-gray-500">Costo Total</p>
+              <p className="font-medium text-gray-900">
+                ${Number(reserva.costo_total).toLocaleString('es-MX', { minimumFractionDigits: 2 })}
+              </p>
+            </div>
+          </div>
+          {/* Pertenencias del cliente (muestra entregadas y estado de devolución) */}
+          {(() => {
+            const p: any = (reserva as any).pertenencias || null;
+            const entregadas: Record<string, boolean> = p && p.entregadas && typeof p.entregadas === 'object'
+              ? p.entregadas
+              : (p && typeof p === 'object' ? p : {});
+            const devueltas: Record<string, boolean> = p && p.devueltas && typeof p.devueltas === 'object'
+              ? p.devueltas
+              : {};
+            const LABELS: Record<string, string> = {
+              correa: 'Correa',
+              pechera: 'Pechera',
+              platos: 'Platos',
+              cama: 'Cama',
+              cobija: 'Cobija',
+              juguetes: 'Juguetes',
+              ropa: 'Ropa',
+              collar: 'Collar',
+              vaso_medidor: 'Vaso medidor'
+            };
+            const keys = Object.keys(entregadas).filter(k => !!entregadas[k]);
+            if (keys.length === 0) return null;
+            return (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-gray-500 text-sm mb-1">Pertenencias</p>
+                <div className="flex flex-wrap gap-2">
+                  {keys.map(k => {
+                    const label = LABELS[k] || k;
+                    const returned = !!devueltas[k];
+                    const classes = returned
+                      ? 'bg-green-100 text-green-700 border border-green-200'
+                      : 'bg-gray-100 text-gray-700 border border-gray-200';
+                    return (
+                      <span key={k} className={`inline-flex items-center px-2 py-1 text-xs rounded-full ${classes}`}>
+                        {label}
+                      </span>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })()}
+          {/* Vigencia de vacunas (365 días). Muestra días restantes o vencida */}
+          {(() => {
+            const fechaVac = mascota?.fecha_ultima_vacuna ? new Date(mascota.fecha_ultima_vacuna) : null;
+            if (!fechaVac || isNaN(fechaVac.getTime())) return null;
+            const hoy = new Date();
+            const vence = new Date(fechaVac);
+            vence.setDate(vence.getDate() + 365);
+            const msDiff = vence.getTime() - hoy.getTime();
+            const diasDiff = Math.ceil(msDiff / (1000 * 60 * 60 * 24));
+            const vencida = diasDiff < 0;
+            const texto = vencida
+              ? `Vacuna vencida hace ${Math.abs(diasDiff)} días`
+              : `Vacuna: ${diasDiff} días restantes`;
+            const classes = vencida
+              ? 'bg-red-100 text-red-700 border border-red-200'
+              : (diasDiff <= 30
+                ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                : 'bg-green-100 text-green-700 border border-green-200');
+            return (
+              <div className="mt-3 pt-3 border-t border-gray-100">
+                <p className="text-gray-500 text-sm mb-1">Vigencia de vacuna</p>
+                <div className="flex flex-wrap gap-2">
+                  <span className={`inline-flex items-center px-2 py-1 text-xs rounded-full ${classes}`}>{texto}</span>
+                  <span className="inline-flex items-center px-2 py-1 text-xs rounded-full bg-gray-50 text-gray-700 border border-gray-200">
+                    Última: {formatDateSafe(mascota?.fecha_ultima_vacuna)}
+                  </span>
+                </div>
+              </div>
+            );
+          })()}
                     {reserva.notas && (
                       <div className="mt-3 pt-3 border-t border-gray-100">
                         <p className="text-sm text-gray-600">{reserva.notas}</p>
@@ -288,6 +360,28 @@ function CerrarReservaModal({
   const [aceptaCondiciones, setAceptaCondiciones] = useState<boolean>(false);
   const [submitting, setSubmitting] = useState<boolean>(false);
 
+  // Normalizar y preparar checklist de devolución de pertenencias
+  const LABELS: Record<string, string> = {
+    correa: 'Correa',
+    pechera: 'Pechera',
+    platos: 'Platos',
+    cama: 'Cama',
+    cobija: 'Cobija',
+    juguetes: 'Juguetes',
+    ropa: 'Ropa',
+    collar: 'Collar',
+    vaso_medidor: 'Vaso medidor',
+  };
+  const pertenenciasRaw: any = (reserva as any).pertenencias || {};
+  const entregadas: Record<string, boolean> = pertenenciasRaw && pertenenciasRaw.entregadas
+    ? (pertenenciasRaw.entregadas as Record<string, boolean>)
+    : (pertenenciasRaw as Record<string, boolean>);
+  const devueltasInitial: Record<string, boolean> = pertenenciasRaw && pertenenciasRaw.devueltas
+    ? (pertenenciasRaw.devueltas as Record<string, boolean>)
+    : Object.fromEntries(Object.keys(entregadas).map(k => [k, false]));
+  const [devueltas, setDevueltas] = useState<Record<string, boolean>>(devueltasInitial);
+  const entregadasKeys = Object.keys(entregadas).filter(k => entregadas[k]);
+
   const residual = Math.max(Number(reserva.monto_restante || 0), 0);
 
   const cerrarConPago = async () => {
@@ -316,7 +410,7 @@ function CerrarReservaModal({
         if (txError) throw txError;
       }
 
-      // Actualizar estado de la reserva a Completada y marcar entrega
+      // Actualizar estado de la reserva a Completada y marcar entrega, guardando devolución de pertenencias
       const { error: updateError } = await supabaseAdmin
         .from('reservas')
         .update({
@@ -324,6 +418,12 @@ function CerrarReservaModal({
           monto_restante: 0,
           acepta_condiciones_entrega: true,
           fecha_entrega: new Date().toISOString(),
+          pertenencias: {
+            ...(pertenenciasRaw && typeof pertenenciasRaw === 'object' ? pertenenciasRaw : {}),
+            // Garantizar que quedan registradas las entregadas y devueltas
+            entregadas: entregadas,
+            devueltas: devueltas,
+          }
         } as any)
         .eq('id', reserva.id);
       if (updateError) throw updateError;
@@ -350,6 +450,11 @@ function CerrarReservaModal({
           estado: 'PendienteCierre',
           acepta_condiciones_entrega: true,
           fecha_entrega: new Date().toISOString(),
+          pertenencias: {
+            ...(pertenenciasRaw && typeof pertenenciasRaw === 'object' ? pertenenciasRaw : {}),
+            entregadas: entregadas,
+            devueltas: devueltas,
+          }
         } as any)
         .eq('id', reserva.id);
       if (updateError) throw updateError;
@@ -365,7 +470,7 @@ function CerrarReservaModal({
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-xl">
+      <div className="bg-white rounded-lg p-6 w-full max-w-xl max-h-[90vh] overflow-y-auto">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">Cerrar / Entregar Reserva</h2>
 
         <div className="space-y-4">
@@ -379,6 +484,35 @@ function CerrarReservaModal({
               <div className="text-gray-900 font-semibold">{reserva.id_mascota ?? '-'}</div>
             </div>
           </div>
+
+          {/* Checklist de devolución de pertenencias */}
+          {entregadasKeys.length > 0 && (
+            <div className="border border-gray-200 rounded-lg p-4">
+              <div className="text-gray-700 font-medium mb-2">Devolución de pertenencias</div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {entregadasKeys.map((k) => (
+                  <label key={k} className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!!devueltas[k]}
+                      onChange={(e) => setDevueltas(prev => ({ ...prev, [k]: e.target.checked }))}
+                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span>{LABELS[k] || k}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="mt-2">
+                <button
+                  type="button"
+                  className="text-xs text-blue-600 hover:underline"
+                  onClick={() => setDevueltas(Object.fromEntries(entregadasKeys.map(k => [k, true])))}
+                >
+                  Marcar todas como devueltas
+                </button>
+              </div>
+            </div>
+          )}
 
           <div className="border border-gray-200 rounded-lg p-4">
             <div className="flex items-center gap-2 text-gray-700 mb-2">
@@ -506,6 +640,7 @@ function NewReservaModal({
   const [costos, setCostos] = useState({ subtotal: 0, iva: 0, total: 0, dias: 0, tarifa_diaria: 0 });
   const [usarProtocoloMascota, setUsarProtocoloMascota] = useState(false);
   const [mostrarCuidadosEspeciales, setMostrarCuidadosEspeciales] = useState(false);
+  const [perMascota, setPerMascota] = useState<Record<string, { id_alimento: string; nuevo_alimento: string; alimento_cantidad: string; alimento_frecuencia: string; alimento_horarios: string; usarProtocolo: boolean; pertenencias: Record<string, boolean>; notas: string }>>({});
 
   // Listas estáticas proporcionadas por el usuario
   const ALIMENTOS_GATO = [
@@ -547,8 +682,9 @@ function NewReservaModal({
     ? clientes.filter(c => c.nombre.toLowerCase().includes(clienteSearch.trim().toLowerCase()))
     : clientes;
 
+  // Mostrar solo mascotas activas del cliente seleccionado
   const mascotasDelCliente = formData.id_cliente
-    ? mascotas.filter(m => m.id_cliente === formData.id_cliente)
+    ? mascotas.filter(m => m.id_cliente === formData.id_cliente && (m as any).activo !== false)
     : [];
 
 const servicioSeleccionado = (() => {
@@ -649,6 +785,20 @@ const servicioSeleccionado = (() => {
     });
   }, [step, mascotaSeleccionada?.id, formData.selected_mascotas]);
 
+  useEffect(() => {
+    const ids = formData.selected_mascotas || [];
+    setPerMascota(prev => {
+      const next: typeof prev = { ...prev };
+      for (const id of ids) {
+        if (!next[id]) next[id] = { id_alimento: '', nuevo_alimento: '', alimento_cantidad: '', alimento_frecuencia: '', alimento_horarios: '', usarProtocolo: false, pertenencias: { correa: false, pechera: false, platos: false, cama: false, cobija: false, juguetes: false, ropa: false, collar: false, vaso_medidor: false }, notas: '' };
+      }
+      for (const pid of Object.keys(next)) {
+        if (!ids.includes(pid)) delete next[pid];
+      }
+      return next;
+    });
+  }, [formData.selected_mascotas]);
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
@@ -674,6 +824,10 @@ const servicioSeleccionado = (() => {
           .single();
         if (alimentoError) throw alimentoError;
         alimentoId = nuevoAlimento.id;
+      }
+      // Sanitizar: si no hay alimento seleccionado, enviar null (evita uuid="" en Postgres)
+      if (!alimentoId || alimentoId === '') {
+        alimentoId = null as any;
       }
       // Recalcular costos por mascota y validar
       const seleccion = (formData.selected_mascotas || []).length > 0
@@ -707,18 +861,34 @@ const servicioSeleccionado = (() => {
       for (let i = 0; i < costosPets.length; i++) {
         const { mascota: m, costos: c } = costosPets[i];
         const shareAnticipo = anticipo > 0 ? sharesRaw[i] : 0;
+        const pm = perMascota[m.id] || { id_alimento: formData.id_alimento, nuevo_alimento: formData.nuevo_alimento, alimento_cantidad: formData.alimento_cantidad, alimento_frecuencia: formData.alimento_frecuencia, alimento_horarios: formData.alimento_horarios, usarProtocolo: false, pertenencias: formData.pertenencias, notas: formData.notas };
+
+        let alimentoIdLocal: any = pm.id_alimento;
+        if (alimentoIdLocal === 'otro' && pm.nuevo_alimento) {
+          const { data: nuevoAlimento, error: alimentoError } = await supabaseAdmin
+            .from('alimentos')
+            .insert({ nombre: pm.nuevo_alimento } as any)
+            .select()
+            .single();
+          if (alimentoError) throw alimentoError;
+          alimentoIdLocal = nuevoAlimento.id;
+        }
+        if (!alimentoIdLocal || alimentoIdLocal === '') {
+          alimentoIdLocal = null as any;
+        }
+
         const reservaData = {
           id_cliente: formData.id_cliente,
           id_mascota: m.id,
           id_servicio: servicioSeleccionado.id,
           fecha_inicio: formData.fecha_inicio,
           fecha_fin: formData.fecha_fin,
-          notas: formData.notas,
-          pertenencias: formData.pertenencias,
-          id_alimento: alimentoId,
-          alimento_cantidad: formData.alimento_cantidad,
-          alimento_frecuencia: formData.alimento_frecuencia,
-          alimento_horarios: formData.alimento_horarios,
+          notas: pm.notas,
+          pertenencias: { entregadas: pm.pertenencias },
+          id_alimento: alimentoIdLocal,
+          alimento_cantidad: pm.alimento_cantidad,
+          alimento_frecuencia: pm.alimento_frecuencia,
+          alimento_horarios: pm.alimento_horarios,
           costo_total: c.total,
           costo_iva: c.iva,
           solicita_factura: formData.solicita_factura,
@@ -921,40 +1091,196 @@ const servicioSeleccionado = (() => {
 
           {step === 2 && (
             <>
-              {mascotaSeleccionada && (
-                <div className="flex items-center justify-between p-3 border border-blue-100 bg-blue-50 rounded">
-                  <label className="flex items-center gap-2 text-sm text-blue-900">
-                    <input
-                      type="checkbox"
-                      checked={usarProtocoloMascota}
-                      onChange={(e) => {
-                        const checked = e.target.checked;
-                        setUsarProtocoloMascota(checked);
-                        if (checked && mascotaSeleccionada) {
-                          const p: any = mascotaSeleccionada;
-                          setFormData(fd => ({
-                            ...fd,
-                            id_alimento: p.id_alimento ?? fd.id_alimento,
-                            alimento_cantidad: p.alimento_cantidad != null ? String(p.alimento_cantidad) : fd.alimento_cantidad,
-                            alimento_frecuencia: p.alimento_frecuencia != null ? String(p.alimento_frecuencia) : fd.alimento_frecuencia,
-                            alimento_horarios: p.alimento_horarios ?? fd.alimento_horarios,
-                          }));
-                        }
-                      }}
-                      className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    />
-                    <span>Usar protocolo guardado de {mascotaSeleccionada?.nombre}</span>
-                  </label>
-                  {usarProtocoloMascota && (
-                    <button
-                      type="button"
-                      onClick={() => setUsarProtocoloMascota(false)}
-                      className="text-sm text-blue-700 hover:underline"
-                    >
-                      Modificar
-                    </button>
-                  )}
+              {((formData.selected_mascotas || []).length > 1) ? (
+                <div className="space-y-4">
+                  {(formData.selected_mascotas || []).map((id) => {
+                    const m = mascotas.find(mm => mm.id === id);
+                    if (!m) return null;
+                    const specie = m.especie?.toLowerCase();
+                    const etiqueta = specie === 'perro' ? 'Perro' : specie === 'gato' ? 'Gato' : undefined;
+                    const hasTipo = alimentos.some((a: any) => a && 'tipo_mascota' in a && a.tipo_mascota);
+                    const alimentosDb = etiqueta ? (hasTipo ? alimentos.filter((a: any) => a.tipo_mascota === etiqueta) : alimentos) : alimentos;
+                    const nombresDb = new Set(alimentosDb.map((a) => a.nombre.toLowerCase()));
+                    const staticList = etiqueta === 'Perro' ? ALIMENTOS_PERRO : etiqueta === 'Gato' ? ALIMENTOS_GATO : [];
+                    const staticExtras = staticList.filter((n) => !nombresDb.has(n.toLowerCase()));
+                    const pm = perMascota[id] || { id_alimento: '', nuevo_alimento: '', alimento_cantidad: '', alimento_frecuencia: '', alimento_horarios: '', usarProtocolo: false };
+                    return (
+                      <div key={id} className="border border-gray-200 rounded-lg p-3">
+                        <div className="flex items-center justify-between">
+                          <div className="font-semibold text-gray-900">{m.nombre}</div>
+                          <label className="flex items-center gap-2 text-sm text-blue-900">
+                            <input
+                              type="checkbox"
+                              checked={pm.usarProtocolo}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setPerMascota(prev => ({
+                                  ...prev,
+                                  [id]: { ...pm, usarProtocolo: checked }
+                                }));
+                                if (checked) {
+                                  const p: any = m;
+                                  setPerMascota(prev => ({
+                                    ...prev,
+                                    [id]: {
+                                      ...pm,
+                                      usarProtocolo: true,
+                                      id_alimento: p.id_alimento ?? pm.id_alimento,
+                                      alimento_cantidad: p.alimento_cantidad != null ? String(p.alimento_cantidad) : pm.alimento_cantidad,
+                                      alimento_frecuencia: p.alimento_frecuencia != null ? String(p.alimento_frecuencia) : pm.alimento_frecuencia,
+                                      alimento_horarios: p.alimento_horarios ?? pm.alimento_horarios,
+                                      nuevo_alimento: pm.nuevo_alimento
+                                    }
+                                  }));
+                                }
+                              }}
+                              className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                            />
+                            <span>Usar protocolo guardado</span>
+                          </label>
+                        </div>
+                        <div className="mt-2 space-y-3">
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                            <textarea
+                              value={pm.notas}
+                              onChange={(e) => setPerMascota(prev => ({ ...prev, [id]: { ...pm, notas: e.target.value } }))}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                              rows={2}
+                              placeholder="Instrucciones especiales, cuidados particulares..."
+                            />
+                          </div>
+                          <fieldset className="border border-gray-200 rounded-lg p-3">
+                            <legend className="px-2 text-sm font-semibold text-gray-700">Pertenencias</legend>
+                            <div className="grid grid-cols-2 gap-3 mt-2">
+                              {Object.keys(pm.pertenencias || {}).map((key) => (
+                                <label key={key} className="flex items-center gap-2 text-sm">
+                                  <input
+                                    type="checkbox"
+                                    checked={!!(pm.pertenencias || {})[key]}
+                                    onChange={(e) => setPerMascota(prev => ({ ...prev, [id]: { ...pm, pertenencias: { ...(pm.pertenencias || {}), [key]: e.target.checked } } }))}
+                                    className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                  />
+                                  {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
+                                </label>
+                              ))}
+                            </div>
+                          </fieldset>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
+                            <select
+                              value={pm.id_alimento === 'otro' && pm.nuevo_alimento ? `static:${pm.nuevo_alimento}` : pm.id_alimento}
+                              onChange={(e) => {
+                                const val = e.target.value;
+                                if (val.startsWith('static:')) {
+                                  const nombre = val.replace('static:', '');
+                                  setPerMascota(prev => ({ ...prev, [id]: { ...pm, id_alimento: 'otro', nuevo_alimento: nombre } }));
+                                } else {
+                                  setPerMascota(prev => ({ ...prev, [id]: { ...pm, id_alimento: val, nuevo_alimento: '' } }));
+                                }
+                              }}
+                              disabled={pm.usarProtocolo}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            >
+                              <option value="">Seleccionar alimento</option>
+                              {alimentosDb.map((a) => (
+                                <option key={a.id} value={a.id}>{a.nombre}</option>
+                              ))}
+                              {staticExtras.map((n) => (
+                                <option key={`static-${n}`} value={`static:${n}`}>{n}</option>
+                              ))}
+                              <option value="otro">Otro (especificar)</option>
+                            </select>
+                          </div>
+                          {pm.id_alimento === 'otro' && (
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Nueva Marca de Alimento</label>
+                              <input
+                                type="text"
+                                required
+                                value={pm.nuevo_alimento}
+                                onChange={(e) => setPerMascota(prev => ({ ...prev, [id]: { ...pm, nuevo_alimento: e.target.value } }))}
+                                disabled={pm.usarProtocolo}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                                placeholder="Escribe la marca"
+                              />
+                            </div>
+                          )}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Cantidad (tazas)</label>
+                              <input
+                                type="number"
+                                step="0.25"
+                                value={pm.alimento_cantidad}
+                                onChange={(e) => setPerMascota(prev => ({ ...prev, [id]: { ...pm, alimento_cantidad: e.target.value } }))}
+                                disabled={pm.usarProtocolo}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-sm font-medium text-gray-700 mb-1">Frecuencia (veces al día)</label>
+                              <input
+                                type="number"
+                                value={pm.alimento_frecuencia}
+                                onChange={(e) => setPerMascota(prev => ({ ...prev, [id]: { ...pm, alimento_frecuencia: e.target.value } }))}
+                                disabled={pm.usarProtocolo}
+                                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                              />
+                            </div>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Horarios</label>
+                            <input
+                              type="text"
+                              value={pm.alimento_horarios}
+                              onChange={(e) => setPerMascota(prev => ({ ...prev, [id]: { ...pm, alimento_horarios: e.target.value } }))}
+                              placeholder="Ej. 8:00 AM, 1:00 PM, 7:00 PM"
+                              disabled={pm.usarProtocolo}
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
+              ) : (
+                mascotaSeleccionada && (
+                  <div className="flex items-center justify-between p-3 border border-blue-100 bg-blue-50 rounded">
+                    <label className="flex items-center gap-2 text-sm text-blue-900">
+                      <input
+                        type="checkbox"
+                        checked={usarProtocoloMascota}
+                        onChange={(e) => {
+                          const checked = e.target.checked;
+                          setUsarProtocoloMascota(checked);
+                          if (checked && mascotaSeleccionada) {
+                            const p: any = mascotaSeleccionada;
+                            setFormData(fd => ({
+                              ...fd,
+                              id_alimento: p.id_alimento ?? fd.id_alimento,
+                              alimento_cantidad: p.alimento_cantidad != null ? String(p.alimento_cantidad) : fd.alimento_cantidad,
+                              alimento_frecuencia: p.alimento_frecuencia != null ? String(p.alimento_frecuencia) : fd.alimento_frecuencia,
+                              alimento_horarios: p.alimento_horarios ?? fd.alimento_horarios,
+                            }));
+                          }
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                      />
+                      <span>Usar protocolo guardado de {mascotaSeleccionada?.nombre}</span>
+                    </label>
+                    {usarProtocoloMascota && (
+                      <button
+                        type="button"
+                        onClick={() => setUsarProtocoloMascota(false)}
+                        className="text-sm text-blue-700 hover:underline"
+                      >
+                        Modificar
+                      </button>
+                    )}
+                  </div>
+                )
               )}
               {/* Cuidados especiales de la mascota seleccionada */}
               {mascotaSeleccionada?.cuidados_especiales && (
@@ -987,44 +1313,49 @@ const servicioSeleccionado = (() => {
                   )}
                 </div>
               )}
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
-                <textarea
-                  value={formData.notas}
-                  onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  rows={3}
-                  placeholder="Instrucciones especiales, cuidados particulares..."
-                />
-              </div>
+              {(formData.selected_mascotas || []).length <= 1 && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Notas</label>
+                  <textarea
+                    value={formData.notas}
+                    onChange={(e) => setFormData({ ...formData, notas: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    rows={3}
+                    placeholder="Instrucciones especiales, cuidados particulares..."
+                  />
+                </div>
+              )}
 
               {/* Checklist de pertenencias */}
-              <fieldset className="border border-gray-200 rounded-lg p-4">
-                <legend className="px-2 text-sm font-semibold text-gray-700">Pertenencias</legend>
-                <div className="grid grid-cols-2 gap-3 mt-2">
-                  {Object.keys(formData.pertenencias).map((key) => (
-                    <label key={key} className="flex items-center gap-2 text-sm">
-                      <input
-                        type="checkbox"
-                        checked={(formData.pertenencias as any)[key]}
-                        onChange={(e) =>
-                          setFormData({
-                            ...formData,
-                            pertenencias: { ...formData.pertenencias, [key]: e.target.checked },
-                          })
-                        }
-                        className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                      />
-                      {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
-                    </label>
-                  ))}
-                </div>
-              </fieldset>
+              {(formData.selected_mascotas || []).length <= 1 && (
+                <fieldset className="border border-gray-200 rounded-lg p-4">
+                  <legend className="px-2 text-sm font-semibold text-gray-700">Pertenencias</legend>
+                  <div className="grid grid-cols-2 gap-3 mt-2">
+                    {Object.keys(formData.pertenencias).map((key) => (
+                      <label key={key} className="flex items-center gap-2 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={(formData.pertenencias as any)[key]}
+                          onChange={(e) =>
+                            setFormData({
+                              ...formData,
+                              pertenencias: { ...formData.pertenencias, [key]: e.target.checked },
+                            })
+                          }
+                          className="h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                        />
+                        {key.charAt(0).toUpperCase() + key.slice(1).replace(/_/g, ' ')}
+                      </label>
+                    ))}
+                  </div>
+                </fieldset>
+              )}
 
               {/* Sección de Alimento */}
-              <fieldset className="border border-gray-200 rounded-lg p-4">
-                <legend className="px-2 text-sm font-semibold text-gray-700">Alimento</legend>
-                <div className="space-y-4 mt-2">
+              {(formData.selected_mascotas || []).length > 1 ? null : (
+                <fieldset className="border border-gray-200 rounded-lg p-4">
+                  <legend className="px-2 text-sm font-semibold text-gray-700">Alimento</legend>
+                  <div className="space-y-4 mt-2">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">Marca</label>
                     {/** Filtra y fusiona listas según especie de la mascota seleccionada */}
@@ -1115,6 +1446,7 @@ const servicioSeleccionado = (() => {
                   </div>
                 </div>
               </fieldset>
+              )}
 
               {/* Servicios Extra */}
               {serviciosExtra.length > 0 && (
@@ -1509,6 +1841,10 @@ function EditReservaModal({
           .single();
         if (alimentoError) throw alimentoError;
         alimentoId = nuevoAlimento.id;
+      }
+      // Sanitizar: si no hay alimento seleccionado, enviar null para evitar uuid="" en Postgres
+      if (!alimentoId || alimentoId === '') {
+        alimentoId = null as any;
       }
 
       const reservaUpdate = {

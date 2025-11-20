@@ -1169,4 +1169,3 @@ const NewMascotaModal = ({ clientes, onClose, onSuccess }) => {
 };
 
 export default ClientesMascotas;
-*/

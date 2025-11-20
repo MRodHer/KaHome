@@ -47,6 +47,10 @@ const MascotaModal: React.FC<MascotaModalProps> = ({ isOpen, onClose, onSave, ma
     url_foto: '',
     historial_medico: '',
     fecha_ultima_vacuna: '',
+    // Estado
+    esterilizado: false,
+    activo: true,
+    motivo_inactivo: '',
     // Protocolo de manejo
     id_alimento: '',
     alimento_cantidad: '',
@@ -123,17 +127,27 @@ const MascotaModal: React.FC<MascotaModalProps> = ({ isOpen, onClose, onSave, ma
   useEffect(() => {
     if (isOpen) {
       if (mascota) {
+        // Asegurar que los campos de fecha queden en ISO (YYYY-MM-DD) para que el input tipo "date" muestre el mini calendario correctamente
+        const toISODate = (v?: string) => {
+          if (!v) return '';
+          const s = String(v);
+          if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+          try { return new Date(s).toISOString().slice(0,10); } catch { return ''; }
+        };
         setFormData({
           id_cliente: (mascota as any).id_cliente || initialClienteId || '',
           nombre: mascota.nombre || '',
           especie: mascota.especie || '',
           raza: mascota.raza || '',
           genero: mascota.genero || 'Macho',
-          fecha_de_nacimiento: mascota.fecha_de_nacimiento ? new Date(mascota.fecha_de_nacimiento).toISOString().split('T')[0] : '',
+          fecha_de_nacimiento: toISODate(mascota.fecha_de_nacimiento),
           peso: mascota.peso || 0,
           url_foto: mascota.url_foto || '',
           historial_medico: mascota.historial_medico || '',
-          fecha_ultima_vacuna: mascota.fecha_ultima_vacuna ? new Date(mascota.fecha_ultima_vacuna).toISOString().split('T')[0] : '',
+          fecha_ultima_vacuna: toISODate(mascota.fecha_ultima_vacuna),
+          esterilizado: Boolean((mascota as any).esterilizado) || false,
+          activo: (typeof (mascota as any).activo === 'boolean') ? (mascota as any).activo : true,
+          motivo_inactivo: (mascota as any).motivo_inactivo || '',
           id_alimento: (mascota as any).id_alimento || '',
           alimento_cantidad: (mascota as any).alimento_cantidad || '',
           alimento_frecuencia: (mascota as any).alimento_frecuencia || '',
@@ -166,6 +180,9 @@ const MascotaModal: React.FC<MascotaModalProps> = ({ isOpen, onClose, onSave, ma
           url_foto: '',
           historial_medico: '',
           fecha_ultima_vacuna: '',
+          esterilizado: false,
+          activo: true,
+          motivo_inactivo: '',
           id_alimento: '',
           alimento_cantidad: '',
           alimento_frecuencia: '',
@@ -183,6 +200,53 @@ const MascotaModal: React.FC<MascotaModalProps> = ({ isOpen, onClose, onSave, ma
       cargarCatalogo();
     }
   }, [mascota, isOpen, initialClienteId]);
+
+  // Utilidades para fechas en formato dd/mm/aaaa
+  const toISOFromDisplay = (s: string): string | null => {
+    const m = s.match(/^([0-3]\d)\/([0-1]\d)\/(\d{4})$/);
+    if (!m) return null;
+    const dd = m[1];
+    const mm = m[2];
+    const yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  };
+
+  // Generador de horarios de 7:00 AM a 9:00 PM en intervalos de 30 min
+  const generateTimeSlots = (): { label: string; value: string }[] => {
+    const slots: { label: string; value: string }[] = [];
+    const startMinutes = 7 * 60; // 07:00
+    const endMinutes = 21 * 60;  // 21:00
+    for (let m = startMinutes; m <= endMinutes; m += 30) {
+      const hh = Math.floor(m / 60);
+      const mm = m % 60;
+      const value = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      const hour12 = ((hh % 12) || 12);
+      const ampm = hh < 12 ? 'AM' : 'PM';
+      const label = `${hour12}:${String(mm).padStart(2, '0')} ${ampm}`;
+      slots.push({ label, value });
+    }
+    return slots;
+  };
+  const timeSlots = generateTimeSlots();
+  const [selectedHorarios, setSelectedHorarios] = useState<string[]>([]);
+
+  useEffect(() => {
+    if (isOpen) {
+      const raw = (formData.alimento_horarios || '').trim();
+      const arr = raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
+      setSelectedHorarios(arr);
+    }
+  }, [isOpen]);
+
+  // Ajustar selección si se reduce la frecuencia
+  useEffect(() => {
+    const freq = parseInt(String(formData.alimento_frecuencia || '0'), 10) || 0;
+    if (freq > 0 && selectedHorarios.length > freq) {
+      const sliced = selectedHorarios.slice(0, freq);
+      setSelectedHorarios(sliced);
+      setFormData(prev => ({ ...prev, alimento_horarios: sliced.join(',') }));
+    }
+  }, [formData.alimento_frecuencia]);
   
   const cargarAlimentos = async () => {
     try {
@@ -271,8 +335,34 @@ const MascotaModal: React.FC<MascotaModalProps> = ({ isOpen, onClose, onSave, ma
       // Si falla, mantenemos el id original (vacío o inválido) sin bloquear el guardado
     }
 
-    const payload = { ...formData, especie: especieFinal, raza: razaFinal, id_alimento: idAlimentoFinal };
-    onSave(payload);
+    // Sanitizar y mitigar: convertir fechas vacías a null, números vacíos a null; convertir dd/mm/aaaa → ISO; omitir campos de protocolo mientras se refresca el esquema del API
+    const sanitize = (obj: any) => {
+      const p = { ...obj };
+      if (p.fecha_de_nacimiento === '') p.fecha_de_nacimiento = null; else if (typeof p.fecha_de_nacimiento === 'string') { const iso = toISOFromDisplay(p.fecha_de_nacimiento); if (iso) p.fecha_de_nacimiento = iso; }
+      if (p.fecha_ultima_vacuna === '') p.fecha_ultima_vacuna = null; else if (typeof p.fecha_ultima_vacuna === 'string') { const iso = toISOFromDisplay(p.fecha_ultima_vacuna); if (iso) p.fecha_ultima_vacuna = iso; }
+      if (p.peso === '' || p.peso === undefined) {
+        p.peso = null;
+      } else if (typeof p.peso === 'string') {
+        const num = parseFloat(p.peso);
+        p.peso = Number.isFinite(num) ? num : null;
+      }
+      if (p.edad === '' || p.edad === undefined) {
+        p.edad = null;
+      } else if (typeof p.edad === 'string') {
+        const num = parseInt(p.edad, 10);
+        p.edad = Number.isFinite(num) ? num : null;
+      }
+      return p;
+    };
+    const payloadFull = { ...formData, especie: especieFinal, raza: razaFinal, id_alimento: idAlimentoFinal } as any;
+    const omit = (obj: any, keys: string[]) => { const c = { ...obj }; for (const k of keys) delete c[k]; return c; };
+    const payloadSinProtocolo = omit(sanitize(payloadFull), [
+      'id_alimento','alimento_cantidad','alimento_frecuencia','alimento_horarios',
+      'cuidados_especiales','protocolo_medicamentos','protocolo_dietas_especiales','protocolo_cuidado_geriatrico'
+    ]);
+    // Enviamos los campos de estado (activo, esterilizado, motivo_inactivo) para que el guardado pueda persistirlos
+    // Si el API aún no refleja estas columnas, el componente padre hará fallback automático.
+    onSave(payloadSinProtocolo);
   };
 
   if (!isOpen) return null;
@@ -382,11 +472,52 @@ const MascotaModal: React.FC<MascotaModalProps> = ({ isOpen, onClose, onSave, ma
                 <option value="Macho">Macho</option>
                 <option value="Hembra">Hembra</option>
               </select>
+
+              {/* Esterilización */}
+              <div className="mt-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="esterilizado"
+                    checked={Boolean(formData.esterilizado)}
+                    onChange={handleChange}
+                  />
+                  <span>Esterilizada</span>
+                </label>
+              </div>
+
+              {/* Estado de ficha (activo/inactivo) */}
+              <div className="mt-4">
+                <label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    name="activo"
+                    checked={Boolean(formData.activo)}
+                    onChange={handleChange}
+                  />
+                  <span>Perfil activo</span>
+                </label>
+                {!formData.activo && (
+                  <div className="mt-2">
+                    <label className="block mb-1 text-sm text-gray-700">Motivo (cuando está inactivo)</label>
+                    <select
+                      name="motivo_inactivo"
+                      value={formData.motivo_inactivo}
+                      onChange={handleChange}
+                      className="w-full p-2 border rounded"
+                    >
+                      <option value="">Seleccione motivo</option>
+                      <option value="difunto">Difunto</option>
+                      <option value="otro">Otro</option>
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
             <div>
               <label className="block mb-2">Foto</label>
-              <UploadPhoto onUpload={handlePhotoUpload} />
-              {formData.url_foto && <img src={formData.url_foto} alt="Mascota" className="w-32 h-32 object-cover rounded-full mt-4"/>}
+              <UploadPhoto bucket="fotos-mascotas" initialUrl={formData.url_foto || undefined} onUpload={handlePhotoUpload} />
+              {/* Eliminamos el preview duplicado; UploadPhoto ya muestra la previsualización */}
 
               <label className="block mt-4 mb-2">Fecha de Nacimiento</label>
               <input type="date" name="fecha_de_nacimiento" value={formData.fecha_de_nacimiento} onChange={handleChange} className="w-full p-2 border rounded"/>
@@ -498,15 +629,36 @@ const MascotaModal: React.FC<MascotaModalProps> = ({ isOpen, onClose, onSave, ma
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block mb-2">Horarios</label>
-                <input
-                  type="text"
-                  name="alimento_horarios"
-                  value={formData.alimento_horarios}
-                  onChange={handleChange}
-                  placeholder="Ej. 8:00 y 19:00"
-                  className="w-full p-2 border rounded"
-                />
+                <label className="block mb-2">Horarios de consumo (selecciona según frecuencia)</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2">
+                  {timeSlots.map(slot => {
+                    const freq = parseInt(String(formData.alimento_frecuencia || '0'), 10) || 0;
+                    const isSelected = selectedHorarios.includes(slot.value);
+                    const limitReached = freq > 0 && selectedHorarios.length >= freq && !isSelected;
+                    return (
+                      <label key={slot.value} className={`flex items-center gap-2 p-2 border rounded ${limitReached ? 'opacity-50' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={limitReached}
+                          onChange={() => {
+                            let next = [...selectedHorarios];
+                            if (isSelected) {
+                              next = next.filter(v => v !== slot.value);
+                            } else {
+                              if (limitReached) return; // no permitir superar el límite
+                              next.push(slot.value);
+                            }
+                            setSelectedHorarios(next);
+                            setFormData(prev => ({ ...prev, alimento_horarios: next.join(',') }));
+                          }}
+                        />
+                        <span>{slot.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Frecuencia seleccionada: {formData.alimento_frecuencia || 0} veces al día • Selecciones: {selectedHorarios.length}</p>
               </div>
             </div>
           </div>

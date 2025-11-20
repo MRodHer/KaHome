@@ -194,22 +194,103 @@ export const ClientesMascotas: React.FC = () => {
   };
 
   const handleSaveMascota = async (mascotaData: any) => {
+    const omitFields = (obj: any, keys: string[]) => {
+      const clone = { ...obj };
+      for (const k of keys) delete clone[k];
+      return clone;
+    };
+    const sanitizePayload = (obj: any) => {
+      const p = { ...obj };
+      // Normalizar fechas: vacío → null
+      if (p.fecha_de_nacimiento === '') p.fecha_de_nacimiento = null;
+      if (p.fecha_ultima_vacuna === '') p.fecha_ultima_vacuna = null;
+      // Normalizar números: vacío → null
+      if (p.peso === '' || p.peso === undefined) {
+        p.peso = null;
+      } else if (typeof p.peso === 'string') {
+        const num = parseFloat(p.peso);
+        p.peso = Number.isFinite(num) ? num : null;
+      }
+      if (p.edad === '' || p.edad === undefined) {
+        p.edad = null;
+      } else if (typeof p.edad === 'string') {
+        const num = parseInt(p.edad, 10);
+        p.edad = Number.isFinite(num) ? num : null;
+      }
+      return p;
+    };
     const tryPersist = async (payload: any) => {
       if (selectedMascota) {
-        return await supabaseAdmin.from('mascotas').update(payload).eq('id', selectedMascota.id);
+        // Evitar representación completa para no disparar el error de caché de esquema en PostgREST
+        return await supabaseAdmin.from('mascotas').update(payload, { returning: 'minimal' }).eq('id', selectedMascota.id);
       } else {
-        return await supabaseAdmin.from('mascotas').insert([payload]);
+        return await supabaseAdmin.from('mascotas').insert([payload], { returning: 'minimal' });
       }
     };
+
+    // Mitigación proactiva: mientras la API de Supabase no refresque la caché de esquema,
+    // omitimos SIEMPRE los campos de protocolo de alimento para evitar el error de "schema cache".
+    // Una vez que reinicies el API/recargues el esquema, podremos volver a enviar estos campos.
+    const payloadSinProtocolo = omitFields(mascotaData, [
+      'id_alimento','alimento_cantidad','alimento_frecuencia','alimento_horarios',
+      // Omitir también los nuevos campos de protocolo hasta que el esquema esté refrescado
+      'cuidados_especiales','protocolo_medicamentos','protocolo_dietas_especiales','protocolo_cuidado_geriatrico'
+    ]);
+    const payloadSanitizado = sanitizePayload(payloadSinProtocolo);
+
     try {
-      const res = await tryPersist(mascotaData);
+      const res = await tryPersist(payloadSanitizado);
       if (res.error) throw res.error;
       fetchData();
       closeMascotaModal();
-      addNotification(`Mascota '${mascotaData.nombre}' guardada con éxito`, 'success');
+      // Advertimos que los campos de protocolo se omitieron
+      const omitioCampos = ['id_alimento','alimento_cantidad','alimento_frecuencia','alimento_horarios','cuidados_especiales','protocolo_medicamentos','protocolo_dietas_especiales','protocolo_cuidado_geriatrico'].some(k => k in mascotaData);
+      if (omitioCampos) {
+        addNotification(`Mascota '${mascotaData.nombre}' guardada (se omitieron temporalmente los campos de protocolo alimento_* por caché de esquema).`, 'warning');
+      } else {
+        addNotification(`Mascota '${mascotaData.nombre}' guardada con éxito`, 'success');
+      }
     } catch (error: any) {
       const msg: string = String(error?.message || 'Error desconocido');
-      addNotification('Error al guardar la mascota: ' + msg, 'error');
+      const isColumnCacheError = (m?: string) => {
+        if (!m) return false;
+        const l = m.toLowerCase();
+        return (
+          l.includes("could not find the 'activo' column") ||
+          l.includes('column \"activo\" does not exist') ||
+          l.includes('column \"esterilizado\" does not exist') ||
+          l.includes('column \"motivo_inactivo\" does not exist') ||
+          l.includes('schema cache') ||
+          l.includes('unknown column')
+        );
+      };
+
+      if (isColumnCacheError(msg)) {
+        // Fallback: reintentar sin los campos de estado si el API no los reconoce todavía
+        const payloadSinEstado = omitFields(payloadSanitizado, ['activo','esterilizado','motivo_inactivo']);
+        try {
+          const res2 = await tryPersist(payloadSinEstado);
+          if (res2.error) throw res2.error;
+          fetchData();
+          closeMascotaModal();
+          addNotification(`Mascota '${mascotaData.nombre}' guardada sin campos de estado por caché de esquema. Reinicia el API de Supabase para habilitar todos los campos.`, 'warning');
+        } catch (error2: any) {
+          const msg2 = String(error2?.message || 'Error desconocido');
+          // Segundo fallback: quitar además campos de texto de protocolo/manejo
+          const payloadMinimo = omitFields(payloadSinEstado, ['observaciones', 'protocolo_manejo']);
+          try {
+            const res3 = await tryPersist(payloadMinimo);
+            if (res3.error) throw res3.error;
+            fetchData();
+            closeMascotaModal();
+            addNotification(`Mascota '${mascotaData.nombre}' guardada con campos mínimos. (Reinicia el API de Supabase para habilitar todos los campos.)`, 'warning');
+          } catch (error3: any) {
+            addNotification('Error al guardar la mascota (reintento mínimo): ' + String(error3?.message || msg2), 'error');
+          }
+        }
+      } else {
+        addNotification('Error al guardar la mascota: ' + msg, 'error');
+      }
     }
   };
 

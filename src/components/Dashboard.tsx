@@ -72,13 +72,18 @@ export const Dashboard = ({ setCurrentView }: { setCurrentView: (view: View) => 
   const [sortByEstado, setSortByEstado] = useState(false);
   const [expandedCuidados, setExpandedCuidados] = useState<Record<string, boolean>>({});
 
+  function horariosOk(r: any): boolean {
+    if (Array.isArray(r.alimento_horarios)) return r.alimento_horarios.length > 0;
+    if (typeof r.alimento_horarios === 'string') return r.alimento_horarios.trim().length > 0;
+    return false;
+  }
+
   function protocoloCompleto(r: any): boolean {
-    const horariosOk = Array.isArray(r.alimento_horarios) && r.alimento_horarios.length > 0;
-    return Boolean(r.id_alimento && r.alimento_cantidad && r.alimento_frecuencia && horariosOk);
+    return Boolean(r.id_alimento && r.alimento_cantidad && r.alimento_frecuencia && horariosOk(r));
   }
 
   function protocoloEstado(r: any): 'completo' | 'parcial' | 'faltante' {
-    const tieneAlguno = Boolean(r.id_alimento || r.alimento_cantidad || r.alimento_frecuencia || (Array.isArray(r.alimento_horarios) && r.alimento_horarios.length > 0));
+    const tieneAlguno = Boolean(r.id_alimento || r.alimento_cantidad || r.alimento_frecuencia || horariosOk(r));
     if (protocoloCompleto(r)) return 'completo';
     if (tieneAlguno) return 'parcial';
     return 'faltante';
@@ -91,6 +96,15 @@ export const Dashboard = ({ setCurrentView }: { setCurrentView: (view: View) => 
 
   useEffect(() => {
     loadDashboardData();
+    const channel = supabaseAdmin
+      .channel('dashboard-reservas')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'reservas' }, () => {
+        loadDashboardData();
+      })
+      .subscribe();
+    return () => {
+      supabaseAdmin.removeChannel(channel);
+    };
   }, []);
 
   async function loadDashboardData() {
@@ -115,7 +129,8 @@ export const Dashboard = ({ setCurrentView }: { setCurrentView: (view: View) => 
         supabaseAdmin.from('reservas').select('id', { count: 'exact', head: true }).eq('estado', 'Completada').gte('fecha_inicio', firstDayOfMonth),
         supabaseAdmin.from('reservas').select('*, mascotas(*), clientes(*)')
           .lte('fecha_inicio', todayIso)
-          .gte('fecha_fin', todayIso),
+          .gte('fecha_fin', todayIso)
+          .in('estado', ['Confirmada', 'PendienteCierre']),
         supabaseAdmin.from('alimentos').select('*'),
       ]);
       const TIMEOUT_MS = 8000;
@@ -277,7 +292,7 @@ export const Dashboard = ({ setCurrentView }: { setCurrentView: (view: View) => 
           <ul className="divide-y divide-gray-100">
             {(() => {
               const base = showProtocolosIncompletos
-                ? reservasHoy.filter((r: any) => !r.id_alimento || !r.alimento_cantidad || !r.alimento_frecuencia || !Array.isArray(r.alimento_horarios) || r.alimento_horarios.length === 0)
+                ? reservasHoy.filter((r: any) => !r.id_alimento || !r.alimento_cantidad || !r.alimento_frecuencia || !horariosOk(r))
                 : reservasHoy;
               const sorted = sortByEstado ? [...base].sort((a, b) => estadoRank(a) - estadoRank(b)) : base;
               return sorted.slice(0, 10).map((r: any) => (
@@ -307,7 +322,11 @@ export const Dashboard = ({ setCurrentView }: { setCurrentView: (view: View) => 
                   <span className="font-medium">Frecuencia:</span>{' '}{r.alimento_frecuencia ?? '—'}
                   {' · '}
                   <span className="font-medium">Horarios:</span>{' '}
-                  {Array.isArray(r.alimento_horarios) && r.alimento_horarios.length > 0 ? r.alimento_horarios.join(', ') : '—'}
+                  {Array.isArray(r.alimento_horarios) && r.alimento_horarios.length > 0
+                    ? r.alimento_horarios.join(', ')
+                    : (typeof r.alimento_horarios === 'string' && r.alimento_horarios.trim().length > 0
+                      ? r.alimento_horarios
+                      : '—')}
                 </div>
                 {r.pertenencias && typeof r.pertenencias === 'object' && (
                   <div className="mt-2 sm:mt-0 flex flex-wrap gap-1">

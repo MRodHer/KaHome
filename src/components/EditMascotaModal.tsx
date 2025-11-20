@@ -169,6 +169,10 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
     fecha_ultima_vacuna: mascota.fecha_ultima_vacuna || '',
     fecha_de_nacimiento: mascota.fecha_de_nacimiento || '',
     url_foto: mascota.url_foto || '',
+    // Estado
+    esterilizado: Boolean((mascota as any).esterilizado) || false,
+    activo: (typeof (mascota as any).activo === 'boolean') ? (mascota as any).activo : true,
+    motivo_inactivo: (mascota as any).motivo_inactivo || '',
     // Protocolo de manejo
     id_alimento: (mascota as any).id_alimento || '',
     alimento_cantidad: (mascota as any).alimento_cantidad || '',
@@ -265,7 +269,9 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
 
   useEffect(() => {
     if (formData.fecha_de_nacimiento) {
-      const birthDate = new Date(formData.fecha_de_nacimiento);
+      // Parsear formato dd/mm/aaaa a Date
+      const parts = String(formData.fecha_de_nacimiento).match(/^([0-3]\d)\/([0-1]\d)\/(\d{4})$/);
+      const birthDate = parts ? new Date(`${parts[3]}-${parts[2]}-${parts[1]}`) : new Date(formData.fecha_de_nacimiento);
       const today = new Date();
       let age = today.getFullYear() - birthDate.getFullYear();
       const m = today.getMonth() - birthDate.getMonth();
@@ -275,6 +281,46 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
       setFormData(prev => ({ ...prev, edad: age.toString() }));
     }
   }, [formData.fecha_de_nacimiento]);
+
+  // Utilidades de fecha y horarios
+  const toISOFromDisplay = (s: string): string | null => {
+    const m = s.match(/^([0-3]\d)\/([0-1]\d)\/(\d{4})$/);
+    if (!m) return null;
+    const dd = m[1];
+    const mm = m[2];
+    const yyyy = m[3];
+    return `${yyyy}-${mm}-${dd}`;
+  };
+  const generateTimeSlots = (): { label: string; value: string }[] => {
+    const slots: { label: string; value: string }[] = [];
+    const startMinutes = 7 * 60;
+    const endMinutes = 21 * 60;
+    for (let m = startMinutes; m <= endMinutes; m += 30) {
+      const hh = Math.floor(m / 60);
+      const mm = m % 60;
+      const value = `${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`;
+      const hour12 = ((hh % 12) || 12);
+      const ampm = hh < 12 ? 'AM' : 'PM';
+      const label = `${hour12}:${String(mm).padStart(2, '0')} ${ampm}`;
+      slots.push({ label, value });
+    }
+    return slots;
+  };
+  const timeSlots = generateTimeSlots();
+  const [selectedHorarios, setSelectedHorarios] = useState<string[]>([]);
+  useEffect(() => {
+    const raw = (formData.alimento_horarios || '').trim();
+    const arr = raw ? raw.split(',').map(s => s.trim()).filter(Boolean) : [];
+    setSelectedHorarios(arr);
+  }, []);
+  useEffect(() => {
+    const freq = parseInt(String(formData.alimento_frecuencia || '0'), 10) || 0;
+    if (freq > 0 && selectedHorarios.length > freq) {
+      const sliced = selectedHorarios.slice(0, freq);
+      setSelectedHorarios(sliced);
+      setFormData(prev => ({ ...prev, alimento_horarios: sliced.join(',') }));
+    }
+  }, [formData.alimento_frecuencia]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -336,13 +382,80 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
         // continuar aunque falle la creación del alimento
       }
 
-      const { error } = await supabaseAdmin
-        .from('mascotas')
-        .update({ ...formData, especie: especieFinal, raza: razaFinal, url_foto: fotoUrl, id_alimento: idAlimentoFinal })
-        .eq('id', mascota.id);
+      // Construir payload, sanitizar y aplicar mitigación temporal
+      const payloadBase = { ...formData, especie: especieFinal, raza: razaFinal, url_foto: fotoUrl, id_alimento: idAlimentoFinal } as any;
+      // Sanitizar: fechas vacías → null; números vacíos → null; strings numéricas → número
+      const sanitize = (obj: any) => {
+        const p = { ...obj };
+        if (p.fecha_de_nacimiento === '') {
+          p.fecha_de_nacimiento = null;
+        } else if (typeof p.fecha_de_nacimiento === 'string') {
+          const iso = toISOFromDisplay(p.fecha_de_nacimiento);
+          if (iso) p.fecha_de_nacimiento = iso;
+        }
+        if (p.fecha_ultima_vacuna === '') {
+          p.fecha_ultima_vacuna = null;
+        } else if (typeof p.fecha_ultima_vacuna === 'string') {
+          const iso2 = toISOFromDisplay(p.fecha_ultima_vacuna);
+          if (iso2) p.fecha_ultima_vacuna = iso2;
+        }
+        if (p.peso === '' || p.peso === undefined) {
+          p.peso = null;
+        } else if (typeof p.peso === 'string') {
+          const num = parseFloat(p.peso);
+          p.peso = Number.isFinite(num) ? num : null;
+        }
+        if (p.edad === '' || p.edad === undefined) {
+          p.edad = null;
+        } else if (typeof p.edad === 'string') {
+          const num = parseInt(p.edad, 10);
+          p.edad = Number.isFinite(num) ? num : null;
+        }
+        return p;
+      };
+      const omit = (obj: any, keys: string[]) => { const c = { ...obj }; for (const k of keys) delete c[k]; return c; };
+      const payloadSinProtocolo = omit(sanitize(payloadBase), [
+        'id_alimento','alimento_cantidad','alimento_frecuencia','alimento_horarios',
+        'cuidados_especiales','protocolo_medicamentos','protocolo_dietas_especiales','protocolo_cuidado_geriatrico'
+      ]);
 
-      if (error) {
-        throw error;
+      const tryUpdate = async (payload: any) => {
+        return await supabaseAdmin
+          .from('mascotas')
+          .update(payload, { returning: 'minimal' })
+          .eq('id', mascota.id);
+      };
+
+      const isColumnCacheError = (msg?: string) => {
+        if (!msg) return false;
+        const m = msg.toLowerCase();
+        return (
+          m.includes("could not find the 'activo' column") ||
+          m.includes('column \"activo\" does not exist') ||
+          m.includes('column \"esterilizado\" does not exist') ||
+          m.includes('column \"motivo_inactivo\" does not exist') ||
+          m.includes('schema cache') ||
+          m.includes('unknown column')
+        );
+      };
+
+      // Primer intento: incluir campos de estado (activo, esterilizado, motivo_inactivo)
+      let res = await tryUpdate(payloadSinProtocolo);
+      if (res.error) {
+        const msg = String(res.error.message || '');
+        if (isColumnCacheError(msg)) {
+          // Fallback: omitir los campos de estado si el API aún no los reconoce
+          const payloadSinEstado = omit(payloadSinProtocolo, ['activo','esterilizado','motivo_inactivo']);
+          res = await tryUpdate(payloadSinEstado);
+          if (res.error) {
+            // Segundo fallback: quitar además campos de texto de protocolo/manejo
+            const payloadMinimo = omit(payloadSinEstado, ['observaciones', 'protocolo_manejo']);
+            const res2 = await tryUpdate(payloadMinimo);
+            if (res2.error) throw res2.error;
+          }
+        } else {
+          throw res.error;
+        }
       }
 
       onSuccess();
@@ -479,6 +592,44 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
             />
           </div>
+
+          {/* Esterilización */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={Boolean(formData.esterilizado)}
+                onChange={(e) => setFormData({ ...formData, esterilizado: e.target.checked })}
+              />
+              <span>Esterilizada</span>
+            </label>
+          </div>
+
+          {/* Estado de ficha (activo/inactivo) */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <input
+                type="checkbox"
+                checked={Boolean(formData.activo)}
+                onChange={(e) => setFormData({ ...formData, activo: e.target.checked })}
+              />
+              <span>Perfil activo</span>
+            </label>
+            {!formData.activo && (
+              <div className="mt-2">
+                <label className="block text-sm text-gray-700 mb-1">Motivo (cuando está inactivo)</label>
+                <select
+                  value={formData.motivo_inactivo}
+                  onChange={(e) => setFormData({ ...formData, motivo_inactivo: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">Seleccione motivo</option>
+                  <option value="difunto">Difunto</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+            )}
+          </div>
           {/* Bloque: Protocolo de manejo */}
           <div className="md:col-span-2 mt-2">
             <h3 className="text-md font-semibold text-gray-900 mb-2">Protocolo de manejo</h3>
@@ -523,14 +674,36 @@ export function EditMascotaModal({ mascota, onClose, onSuccess }: { mascota: Mas
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">Horarios</label>
-                <input
-                  type="text"
-                  value={formData.alimento_horarios}
-                  onChange={(e) => setFormData({ ...formData, alimento_horarios: e.target.value })}
-                  placeholder="Ej. 8:00 y 19:00"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Horarios de consumo (selecciona según frecuencia)</label>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                  {timeSlots.map(slot => {
+                    const freq = parseInt(String(formData.alimento_frecuencia || '0'), 10) || 0;
+                    const isSelected = selectedHorarios.includes(slot.value);
+                    const limitReached = freq > 0 && selectedHorarios.length >= freq && !isSelected;
+                    return (
+                      <label key={slot.value} className={`flex items-center gap-2 p-2 border rounded ${limitReached ? 'opacity-50' : ''}`}>
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          disabled={limitReached}
+                          onChange={() => {
+                            let next = [...selectedHorarios];
+                            if (isSelected) {
+                              next = next.filter(v => v !== slot.value);
+                            } else {
+                              if (limitReached) return;
+                              next.push(slot.value);
+                            }
+                            setSelectedHorarios(next);
+                            setFormData(prev => ({ ...prev, alimento_horarios: next.join(',') }));
+                          }}
+                        />
+                        <span>{slot.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="text-xs text-gray-500 mt-2">Frecuencia seleccionada: {formData.alimento_frecuencia || 0} veces al día • Selecciones: {selectedHorarios.length}</p>
               </div>
             </div>
           </div>
