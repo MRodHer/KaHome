@@ -491,6 +491,12 @@ export const ClientesMascotas: React.FC = () => {
         onSave={handleSaveCliente}
         cliente={selectedCliente}
         ubicaciones={ubicaciones}
+        onAddMascotaToExisting={() => {
+          if (selectedCliente) {
+            setClienteModalOpen(false);
+            setMascotaModalOpen(true);
+          }
+        }}
         onCreateAndAddMascota={async (clienteData: any) => {
           try {
             const { data, error } = await supabaseAdmin

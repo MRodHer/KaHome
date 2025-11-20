@@ -27,9 +27,10 @@ interface ClienteModalProps {
   cliente: Cliente | null;
   ubicaciones: Ubicacion[];
   onCreateAndAddMascota?: (clienteData: any) => void;
+  onAddMascotaToExisting?: () => void;
 }
 
-const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cliente, ubicaciones, onCreateAndAddMascota }) => {
+const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cliente, ubicaciones, onCreateAndAddMascota, onAddMascotaToExisting }) => {
   const [formData, setFormData] = useState({
     nombre: '',
     email: '',
@@ -165,6 +166,18 @@ const ClienteModal: React.FC<ClienteModalProps> = ({ isOpen, onClose, onSave, cl
                 }}
                 className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
                 title="Guarda el cliente y abre el formulario para añadir una mascota"
+              >
+                Añadir Mascota
+              </button>
+            )}
+            {cliente && onAddMascotaToExisting && (
+              <button
+                type="button"
+                onClick={() => {
+                  onAddMascotaToExisting();
+                }}
+                className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                title="Abrir formulario para añadir una mascota a este cliente"
               >
                 Añadir Mascota
               </button>
